@@ -9,6 +9,8 @@ Then in python:
 
 In [1]: import covid_analysis                                                   
 In [2]: c = covid_analysis.Covid_analysis()                                     
-In [3]: c.plots_countries(['Italy', 'France', 'United Kingdom', 'Germany', 'US'], fitpts=10, fitpts_ext=25)   
+
+and you should get three plots of CASES, DEATHS, RECOVERED
+
 
 ![example](example_plot.png)

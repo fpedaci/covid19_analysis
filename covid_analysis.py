@@ -9,12 +9,21 @@ path0 = '/home/francesco/scripts/repositories/COVID-19/'
 
 class Covid_analysis():
 
-    def __init__(self):
+    def __init__(self, countries=['Italy','France','United Kingdom','Germany','US']):
+
         path = path0 + 'csse_covid_19_data/csse_covid_19_time_series/'
         self.file_confirmed = path + 'time_series_19-covid-Confirmed.csv'
         self.file_deaths = path + 'time_series_19-covid-Deaths.csv' 
+        self.file_recovered = path + 'time_series_19-covid-Recovered.csv' 
+
         self.d_confirmed = self.make_dict(self.file_confirmed)
         self.d_deaths = self.make_dict(self.file_deaths)
+        self.d_recovered = self.make_dict(self.file_recovered)
+
+        self.plots_countries('cases', countries, fitpts=5, fitpts_ext=20)
+        self.plots_countries('deaths', countries, fitpts=5, fitpts_ext=20)
+        self.plots_countries('recovered', countries, fitpts=5, fitpts_ext=20)
+
 
 
     def make_dict(self, filename):
@@ -29,11 +38,11 @@ class Covid_analysis():
         return d
 
 
+
     def find_country(self, d, country):
-        ''' find keys for country in dict d'''
+        ''' find keys,cases,dates for country in dict d'''
         keys_country = [i for i in d.keys() if d[i]['Country/Region']==country]
-        print(f'Covid_analysis.find_country(): {country} found in {len(keys_country)} keys')
-        
+        print(f'Covid_analysis.find_country(): {country} found in {len(keys_country)} keys')        
         for j,k in enumerate(keys_country):
             cases = np.array([int(d[k][i]) for i in d[k].keys() if re.match('(.|..)/(.|..)/(.|..)', i)])
             dates = np.array([i for i in d[k].keys() if re.match('(.|..)/(.|..)/(.|..)', i)])
@@ -45,31 +54,45 @@ class Covid_analysis():
         return cases_sum, dates
 
 
-    def plots_countries(self, countries=[], fitpts=5, fitpts_ext=5):
-        ''' plot data for every country in list, with lin fit to log of last fitpts of data'''
-        fig = plt.figure('find_country', clear=True)
-        ax1 = fig.add_subplot(211)
-        ax2 = fig.add_subplot(212, sharex=ax1)
+
+    def plots_countries(self, which='cases', countries=[], fitpts=5, fitpts_ext=5):
+        ''' plot data for every country in list, with fit of last fitpts of data
+        which : 'cases', 'deaths'
+        countries : list of string with valid names
+        fitpts : last points to use in fit 
+        fitpts_ext : extra points to plot fit
+        '''   
+        if which == 'cases':
+            d = self.d_confirmed
+        elif which == 'deaths':
+            d = self.d_deaths
+        elif which == 'recovered':
+            d = self.d_recovered
+
+        fig1 = plt.figure(which, clear=True)
+        ax11 = fig1.add_subplot(211)
+        ax12 = fig1.add_subplot(212, sharex=ax11)
 
         for country in countries:
-            cases_conf, dates = self.find_country(self.d_confirmed, country)
-            deaths, dates = self.find_country(self.d_deaths, country)
-            
+            # get data:
+            cases_conf, dates = self.find_country(d, country)
+            # fit of last fitpts:            
             xfit0 = np.arange(len(cases_conf)-fitpts, len(cases_conf))
-            logfit = np.polyfit(xfit0, np.log10(cases_conf[-fitpts:]), 1) 
-            
-            p, = ax1.semilogy(cases_conf, '-o', alpha=0.5, label=country)
+            logfit_cases = np.polyfit(xfit0, np.log10(cases_conf[-fitpts:]), 1) 
+            # plots:
+            c1, = ax11.semilogy(cases_conf, '-o', alpha=0.5, label=country)
             xfit1 = np.arange(xfit0[0], xfit0[-1]+fitpts_ext)
-            ax1.plot(xfit1, 10**np.poly1d(logfit)(xfit1), '--', color=p.get_color())
-            ax2.semilogy(np.diff(cases_conf), '-o', alpha=0.5, label=country)
-        
-        ax1.legend()
-        ax2.legend()
-        ax1.set_title(f'day0={dates[0]}, last:{dates[-1]}')
-        ax1.set_xlabel('Days')
-        ax2.set_xlabel('Days')
-        ax1.set_ylabel('Cases')
-        ax2.set_ylabel('Cases/day')
+            ax11.plot(xfit1, 10**np.poly1d(logfit_cases)(xfit1), '--', color=c1.get_color())
+            ax12.semilogy(np.diff(cases_conf), '-o', alpha=0.5, label=country)
+            
+        ax11.legend()
+        ax12.legend()
+        ax11.set_title(f'day0={dates[0]}, last:{dates[-1]}')
+        ax11.set_xlabel('days', fontsize=14)
+        ax12.set_xlabel('days', fontsize=14)
+        ax11.set_ylabel(which, fontsize=14)
+        ax12.set_ylabel(which+'/day', fontsize=14)
+        plt.tight_layout()
             
 
         

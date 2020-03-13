@@ -45,20 +45,31 @@ class Covid_analysis():
         return cases_sum, dates
 
 
-    def plots_countries(self, countries=[]):
+    def plots_countries(self, countries=[], fitpts=5, fitpts_ext=5):
+        ''' plot data for every country in list, with lin fit to log of last fitpts of data'''
         fig = plt.figure('find_country', clear=True)
-        ax = fig.add_subplot(111)
+        ax1 = fig.add_subplot(211)
+        ax2 = fig.add_subplot(212, sharex=ax1)
 
         for country in countries:
             cases_conf, dates = self.find_country(self.d_confirmed, country)
             deaths, dates = self.find_country(self.d_deaths, country)
+            
+            xfit0 = np.arange(len(cases_conf)-fitpts, len(cases_conf))
+            logfit = np.polyfit(xfit0, np.log10(cases_conf[-fitpts:]), 1) 
+            
+            p, = ax1.semilogy(cases_conf, '-o', alpha=0.5, label=country)
+            xfit1 = np.arange(xfit0[0], xfit0[-1]+fitpts_ext)
+            ax1.plot(xfit1, 10**np.poly1d(logfit)(xfit1), '--', color=p.get_color())
+            ax2.semilogy(np.diff(cases_conf), '-o', alpha=0.5, label=country)
         
-            ax.semilogy(cases_conf, '-o', label=country)
-        
-        ax.legend()
-        ax.set_title(f'day0={dates[0]}, last:{dates[-1]}')
-        ax.set_xlabel('Days')
-        ax.set_ylabel('')
+        ax1.legend()
+        ax2.legend()
+        ax1.set_title(f'day0={dates[0]}, last:{dates[-1]}')
+        ax1.set_xlabel('Days')
+        ax2.set_xlabel('Days')
+        ax1.set_ylabel('Cases')
+        ax2.set_ylabel('Cases/day')
             
 
         

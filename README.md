@@ -11,4 +11,4 @@ In [1]: import covid_analysis
 In [2]: c = covid_analysis.Covid_analysis()                                     
 In [3]: c.plots_countries(['Italy', 'France', 'US'])   
 
-![example](example_image)
+![example](example_plot.png)

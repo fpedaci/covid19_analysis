@@ -15,7 +15,9 @@ def covid_analysis_xls(countries=['Italy','France'], download=False, fitpts=10, 
     '''
 
     if download:
-        import wget
+        import wget, os
+        if 'data.xls' in os.listdir():
+            os.rename('data.xls', 'data_old.xls')
         wget.download('https://www.ecdc.europa.eu/sites/default/files/documents/COVID-19-geographic-disbtribution-worldwide-2020-03-14_1.xls', './data.xls')
 
     d_cases = {}
@@ -69,6 +71,12 @@ def covid_analysis_xls(countries=['Italy','France'], download=False, fitpts=10, 
     ax2.set_ylabel('Cumulative deaths')
     plt.tight_layout()
 
+    from matplotlib.ticker import FuncFormatter
+    formatter = FuncFormatter(lambda x_val, tick_pos: str(datetime.datetime(*xlrd.xldate_as_tuple(x_val, book.datemode)).date()).lstrip('2020'))
+    ax2.xaxis.set_major_formatter(formatter)
+
+
     #return d_cases, d_deaths
     #return dates_time_d
+
 

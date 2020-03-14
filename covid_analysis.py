@@ -3,13 +3,15 @@ import re
 import numpy as np
 import matplotlib.pyplot as plt
 
+#wget.download('https://www.ecdc.europa.eu/sites/default/files/documents/COVID-19-geographic-disbtribution-worldwide-2020-03-14_1.xls', './data.xls')
+
 
 # path to local /COVID-19 repository:
 path0 = '/home/francesco/scripts/repositories/COVID-19/'
 
 class Covid_analysis():
 
-    def __init__(self, countries=['Italy','France','United Kingdom','Germany','US']):
+    def __init__(self, countries=['Italy','France','United Kingdom','Germany','US','Spain'], fitpts=5, fitpts_ext=20):
 
         path = path0 + 'csse_covid_19_data/csse_covid_19_time_series/'
         self.file_confirmed = path + 'time_series_19-covid-Confirmed.csv'
@@ -20,9 +22,28 @@ class Covid_analysis():
         self.d_deaths = self.make_dict(self.file_deaths)
         self.d_recovered = self.make_dict(self.file_recovered)
 
-        self.plots_countries('cases', countries, fitpts=5, fitpts_ext=20)
-        self.plots_countries('deaths', countries, fitpts=5, fitpts_ext=20)
-        self.plots_countries('recovered', countries, fitpts=5, fitpts_ext=20)
+        self.plots_countries('cases', countries, fitpts=fitpts, fitpts_ext=fitpts_ext)
+        self.plots_countries('deaths', countries, fitpts=fitpts, fitpts_ext=fitpts_ext)
+        self.plots_countries('recovered', countries, fitpts=fitpts, fitpts_ext=fitpts_ext)
+
+
+
+    def open_xls(self, countries=['Italy']):
+        ''' '''
+        book = xlrd.open_workbook('data.xls') 
+        sheet = book.sheet_by_index(0)
+        dates_float = sheet.col_values(0)
+        countries_all = sheet.col_values(1)
+        newconfcases = sheet.col_values(2)
+        newdeaths = sheet.col_values(3)
+        cases_all = np.array(list(zip(countries_all, dates_float, newconfcases)))[1:]
+        deaths_all = np.array(list(zip(countries_all, dates_float, newdeaths)))[1:]
+        
+        for country in countries:
+            cases_country  = [i for i in cases_all if i[0]==country]
+            deaths_country = [i for i in deaths_all if i[0]==country] 
+
+        return cases_country, deaths_country
 
 
 

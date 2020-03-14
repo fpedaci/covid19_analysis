@@ -4,7 +4,6 @@ import xlrd
 import datetime
 
 
-#a1_as_datetime = datetime.datetime(*xlrd.xldate_as_tuple(a1, book.datemode))
 
 def covid_analysis_xls(countries=['Italy','France'], download=False, fitpts=10, fitpts_ext=10):
     ''' plot covid19 data from www.ecdc.europa.eu 

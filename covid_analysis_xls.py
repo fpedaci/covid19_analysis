@@ -40,16 +40,18 @@ def covid_analysis_xls(countries=['Italy','France'], download=False, fitpts=10, 
         # populate with dates_float, data:
         c = np.array([[float(i[1]), float(i[2])] for i in cases_all if i[0]==country])
         d = np.array([[float(i[1]), float(i[2])] for i in deaths_all if i[0]==country])
-        d_cases[country] = np.sort(c, axis=0)
-        d_deaths[country] = np.sort(d, axis=0)
+        d_cases[country] = c[::-1]
+        d_deaths[country] = d[::-1]
         # cumulative:
         d_cases[country][:,1] = np.cumsum(d_cases[country][:,1])
         d_deaths[country][:,1] = np.cumsum(d_deaths[country][:,1])
+
         # fit of last fitpts:
         xfit0c = d_cases[country][-fitpts:,0]
         xfit0d = d_deaths[country][-fitpts:,0]
         logfit_cases = np.polyfit(xfit0c, np.log10(d_cases[country][-fitpts:,1]), 1)
         logfit_deaths = np.polyfit(xfit0d, np.log10(d_deaths[country][-fitpts:,1]), 1)
+        
         # dates as days:
         dates_time_c = [str(datetime.datetime(*xlrd.xldate_as_tuple(a, book.datemode)).date()) for a in d_cases[country][:,0]]
         dates_time_d = [str(datetime.datetime(*xlrd.xldate_as_tuple(a, book.datemode)).date()) for a in d_deaths[country][:,0]]

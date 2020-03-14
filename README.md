@@ -31,6 +31,7 @@ and you should get three plots of CASES, DEATHS, RECOVERED
 2) covid_analysis_xls.py:
 
 In [1]: import covid_analysis_xls
+
 In [2]: covid_analysis_xls.covid_analysis_xls(download=True, countries=['China','Italy','France','Spain','United Kingdom','United States of America'], fitpts=5, fitpts_ext=30)
 
 ![example](covid_xls.png)

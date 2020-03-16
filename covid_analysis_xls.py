@@ -17,7 +17,7 @@ def covid_analysis_xls(countries=['Italy','France'], download=False, fitpts=10, 
         import wget, os
         if 'data.xls' in os.listdir():
             os.rename('data.xls', 'data_old.xls')
-        wget.download('https://www.ecdc.europa.eu/sites/default/files/documents/COVID-19-geographic-disbtribution-worldwide-2020-03-14_1.xls', './data.xls')
+        wget.download('https://www.ecdc.europa.eu/sites/default/files/documents/COVID-19-geographic-disbtribution-worldwide-2020-03-16.xls', './data.xls')
 
     d_cases_day = {}
     d_deaths_day = {}

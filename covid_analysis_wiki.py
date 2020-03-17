@@ -12,9 +12,13 @@ import dateutil
 class Covid_analysis_wiki():
     
 
-    def __init__(self, countries=['Italy','France'], download=False):
-        ''' ex. usage: 
-            covid_analysis_wiki.Covid_analysis_wiki(download=1, countries=['Italy','France','United_States','Spain'])
+    def __init__(self, countries=['Italy','France'], download=False, fitpts=5, fitpts_ext=10):
+        ''' 
+        plot covid data of countries from their wikipedia pages.
+        fit the log of the last 'fitpts' points, extend the plot to +- 'fitpts_ext' points
+
+        ex. usage: 
+            covid_analysis_wiki.Covid_analysis_wiki(download=1, countries=['Italy','France','United_States'])
         '''
         self.wiki_page = 'https://en.wikipedia.org/w/index.php?title=Template:2019%E2%80%9320_coronavirus_pandemic_data/'
         self.d_data = {}
@@ -23,7 +27,7 @@ class Covid_analysis_wiki():
             if download:
                 self.download(country)
             self.read_file(country)
-        self.plot_data()
+        self.plot_data(fitpts=fitpts, fitpts_ext=fitpts_ext)
 
 
     def download(self, country):
@@ -61,12 +65,17 @@ class Covid_analysis_wiki():
         self.d_data[country]['cases'] = cases
 
    
-    def plot_data(self):
+    def plot_data(self, fitpts=5, fitpts_ext=10):
         d = self.d_data
-        fig1 = plt.figure('cumulative', clear=True)
+        fig1 = plt.figure('cumulative', clear=True, figsize=(5,8))
         ax11 = fig1.add_subplot(311)
         ax12 = fig1.add_subplot(312, sharex=ax11)
         ax13 = fig1.add_subplot(313, sharex=ax11)
+        fig2 = plt.figure('per day', clear=True, figsize=(5,8))
+        ax21 = fig2.add_subplot(311)
+        ax22 = fig2.add_subplot(312, sharex=ax21)
+        ax23 = fig2.add_subplot(313, sharex=ax21)
+
         for country in d:
             death_dates = d[country]['death_dates']
             recov_dates = d[country]['recov_dates']
@@ -77,19 +86,56 @@ class Covid_analysis_wiki():
             death = d[country]['death']
             recov = d[country]['recov']
             cases = d[country]['cases']
-            ax11.semilogy(cases_dates_float, cases, '-o', alpha=0.6, label=country)
-            ax12.semilogy(death_dates_float, death, '-o', alpha=0.6, label=country)
-            ax13.semilogy(recov_dates_float, recov, '-o', alpha=0.6, label=country)
+
+            # plots:
+            cc, = ax11.semilogy(cases_dates_float, cases, 'o', mfc='none', mew=1, alpha=0.6, label=country)
+            cd, = ax12.semilogy(death_dates_float, death, 'o', mfc='none', mew=1, alpha=0.6, label=country)
+            cr, = ax13.semilogy(recov_dates_float, recov, 'o', mfc='none', mew=1, alpha=0.6, label=country)
+            ax21.plot(cases_dates_float[1:], np.diff(cases), '-o', alpha=0.6, label=country)
+            ax22.plot(death_dates_float[1:], np.diff(death), '-o', alpha=0.6, label=country)
+            ax23.plot(recov_dates_float[1:], np.diff(recov), '-o', alpha=0.6, label=country)
+            
+            # fit ot log:
+            dt = 86400 # = np.diff(cases_dates_float)[-1]
+            logfit_cases = np.polyfit(cases_dates_float[-fitpts:], np.log10(cases[-fitpts:]), 1)
+            logfit_death = np.polyfit(death_dates_float[-fitpts:], np.log10(death[-fitpts:]), 1)
+            logfit_recov = np.polyfit(recov_dates_float[-fitpts:], np.log10(recov[-fitpts:]), 1)
+            xfit_cases = np.linspace(cases_dates_float[-fitpts] - fitpts_ext*dt, cases_dates_float[-1] + fitpts_ext*dt, 10)
+            xfit_death = np.linspace(death_dates_float[-fitpts] - fitpts_ext*dt, death_dates_float[-1] + fitpts_ext*dt, 10)
+            xfit_recov = np.linspace(recov_dates_float[-fitpts] - fitpts_ext*dt, recov_dates_float[-1] + fitpts_ext*dt, 10)
+            ax11.plot(xfit_cases, 10**np.poly1d(logfit_cases)(xfit_cases), '--', lw=2, alpha=0.6, color=cc.get_color())
+            ax12.plot(xfit_death, 10**np.poly1d(logfit_death)(xfit_death), '--', lw=2, alpha=0.6, color=cd.get_color())
+            ax13.plot(xfit_recov, 10**np.poly1d(logfit_recov)(xfit_recov), '--', lw=2, alpha=0.6, color=cr.get_color())
+            ax11.semilogy(cases_dates_float[-fitpts:], cases[-fitpts:], 'o', color=cc.get_color(), alpha=0.6)
+            ax12.semilogy(death_dates_float[-fitpts:], death[-fitpts:], 'o', color=cd.get_color(), alpha=0.6)
+            ax13.semilogy(recov_dates_float[-fitpts:], recov[-fitpts:], 'o', color=cr.get_color(), alpha=0.6)
+
+
         ax11.set_ylabel('Cumul. cases')
         ax12.set_ylabel('Cumul. deaths')
         ax13.set_ylabel('Cumul. recoveries')
+        ax11.set_xlabel('Days')
+        ax12.set_xlabel('Days')
+        ax13.set_xlabel('Days')
         ax11.legend()
+        ax21.set_ylabel('Daily cases')
+        ax22.set_ylabel('Daily deaths')
+        ax23.set_ylabel('Daily recoveries')
+        ax21.set_xlabel('Days')
+        ax22.set_xlabel('Days')
+        ax23.set_xlabel('Days')
+        ax21.legend()
+        fig1.tight_layout()
+        fig2.tight_layout()
         
         from matplotlib.ticker import FuncFormatter
         formatter = FuncFormatter(lambda x_val, tick_pos: str(datetime.datetime.fromtimestamp(x_val).date()).lstrip('2020'))
         ax11.xaxis.set_major_formatter(formatter)
         ax12.xaxis.set_major_formatter(formatter)
         ax13.xaxis.set_major_formatter(formatter)
+        ax21.xaxis.set_major_formatter(formatter)
+        ax22.xaxis.set_major_formatter(formatter)
+        ax23.xaxis.set_major_formatter(formatter)
 
 
     #TODOc#

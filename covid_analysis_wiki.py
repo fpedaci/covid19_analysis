@@ -46,15 +46,32 @@ class Covid_analysis_wiki():
             lines = f.readlines()
         # get data:
         found_lines = [line for line in lines if re.match('{{Medical cases chart/Row\|202', line)]
-        data_matrix = np.array([f.split(sep='|')[1:5] for f in found_lines])
+        data_matrix = [f.replace('|||','|').split(sep='|')[1:5] for f in found_lines]
+        #data_matrix = [f.split(sep='|')[1:5] for f in found_lines]
+        #print(data_matrix)
+
+        for i,d in enumerate(data_matrix):
+            print('---')
+            print(i,d)
+            for j,dd in enumerate(d[1:]):
+                print(j, dd)
+                try:
+                    int(dd)
+                except:
+                    print(data_matrix[i][j+1])
+                    data_matrix[i][j+1] = ''
+                    print(data_matrix[i])
+                    print('-corr')
         print(data_matrix)
+        
+        #return data_matrix
         # avoid empty data:
-        death_dates = [i[0] for i in data_matrix if i[1]!='']
-        recov_dates = [i[0] for i in data_matrix if i[2]!='']
-        cases_dates = [i[0] for i in data_matrix if i[3]!='']
-        death = np.array([int(i[1]) for i in data_matrix if i[1]!=''])
-        recov = np.array([int(i[2]) for i in data_matrix if i[2]!=''])
-        cases = np.array([int(i[3]) for i in data_matrix if i[3]!=''])
+        death_dates = [i[0] for i in data_matrix if i[1]!='' and not i[1].startswith('(')]
+        recov_dates = [i[0] for i in data_matrix if i[2]!='' and not i[2].startswith('(')]
+        cases_dates = [i[0] for i in data_matrix if i[3]!='' and not i[3].startswith('(')]
+        death = np.array([int(i[1]) for i in data_matrix if i[1]!='' and not i[1].startswith('(')])
+        recov = np.array([int(i[2]) for i in data_matrix if i[2]!='' and not i[2].startswith('(')])
+        cases = np.array([int(i[3]) for i in data_matrix if i[3]!='' and not i[3].startswith('(')])
         # store:
         self.d_data[country] = {}
         self.d_data[country]['death_dates'] = death_dates
@@ -63,6 +80,7 @@ class Covid_analysis_wiki():
         self.d_data[country]['death'] = death
         self.d_data[country]['recov'] = recov
         self.d_data[country]['cases'] = cases
+        return data_matrix
 
    
     def plot_data(self, fitpts=5, fitpts_ext=10):
@@ -72,9 +90,9 @@ class Covid_analysis_wiki():
         ax12 = fig1.add_subplot(312, sharex=ax11)
         ax13 = fig1.add_subplot(313, sharex=ax11)
         fig2 = plt.figure('per day', clear=True, figsize=(5,8))
-        ax21 = fig2.add_subplot(311)
-        ax22 = fig2.add_subplot(312, sharex=ax21)
-        ax23 = fig2.add_subplot(313, sharex=ax21)
+        ax21 = fig2.add_subplot(311, sharex=ax11)
+        ax22 = fig2.add_subplot(312, sharex=ax11)
+        ax23 = fig2.add_subplot(313, sharex=ax11)
 
         for country in d:
             death_dates = d[country]['death_dates']
@@ -88,27 +106,39 @@ class Covid_analysis_wiki():
             cases = d[country]['cases']
 
             # plots:
-            cc, = ax11.semilogy(cases_dates_float, cases, 'o', mfc='none', mew=1, alpha=0.6, label=country)
-            cd, = ax12.semilogy(death_dates_float, death, 'o', mfc='none', mew=1, alpha=0.6, label=country)
-            cr, = ax13.semilogy(recov_dates_float, recov, 'o', mfc='none', mew=1, alpha=0.6, label=country)
+            cc, = ax11.semilogy(cases_dates_float, cases, '-o', mfc='none', mew=1, alpha=0.7)
+            cd, = ax12.semilogy(death_dates_float, death, '-o', mfc='none', mew=1, alpha=0.7)
+            cr, = ax13.semilogy(recov_dates_float, recov, '-o', mfc='none', mew=1, alpha=0.7)
             ax21.plot(cases_dates_float[1:], np.diff(cases), '-o', alpha=0.6, label=country)
             ax22.plot(death_dates_float[1:], np.diff(death), '-o', alpha=0.6, label=country)
             ax23.plot(recov_dates_float[1:], np.diff(recov), '-o', alpha=0.6, label=country)
             
             # fit ot log:
             dt = 86400 # = np.diff(cases_dates_float)[-1]
-            logfit_cases = np.polyfit(cases_dates_float[-fitpts:], np.log10(cases[-fitpts:]), 1)
-            logfit_death = np.polyfit(death_dates_float[-fitpts:], np.log10(death[-fitpts:]), 1)
-            logfit_recov = np.polyfit(recov_dates_float[-fitpts:], np.log10(recov[-fitpts:]), 1)
-            xfit_cases = np.linspace(cases_dates_float[-fitpts] - fitpts_ext*dt, cases_dates_float[-1] + fitpts_ext*dt, 10)
-            xfit_death = np.linspace(death_dates_float[-fitpts] - fitpts_ext*dt, death_dates_float[-1] + fitpts_ext*dt, 10)
-            xfit_recov = np.linspace(recov_dates_float[-fitpts] - fitpts_ext*dt, recov_dates_float[-1] + fitpts_ext*dt, 10)
-            ax11.plot(xfit_cases, 10**np.poly1d(logfit_cases)(xfit_cases), '--', lw=2, alpha=0.6, color=cc.get_color())
-            ax12.plot(xfit_death, 10**np.poly1d(logfit_death)(xfit_death), '--', lw=2, alpha=0.6, color=cd.get_color())
-            ax13.plot(xfit_recov, 10**np.poly1d(logfit_recov)(xfit_recov), '--', lw=2, alpha=0.6, color=cr.get_color())
-            ax11.semilogy(cases_dates_float[-fitpts:], cases[-fitpts:], 'o', color=cc.get_color(), alpha=0.6)
-            ax12.semilogy(death_dates_float[-fitpts:], death[-fitpts:], 'o', color=cd.get_color(), alpha=0.6)
-            ax13.semilogy(recov_dates_float[-fitpts:], recov[-fitpts:], 'o', color=cr.get_color(), alpha=0.6)
+            try:
+                logfit_cases = np.polyfit(cases_dates_float[-fitpts:], np.log10(cases[-fitpts:]), 1)
+                xfit_cases = np.linspace(cases_dates_float[-fitpts] - fitpts_ext*dt, cases_dates_float[-1] + fitpts_ext*dt, 10)
+                ax11.plot(xfit_cases, 10**np.poly1d(logfit_cases)(xfit_cases), '--', lw=2, alpha=0.6, color=cc.get_color())
+            except:
+                print('plot_data(): error logfit cases')
+
+            try:
+                logfit_death = np.polyfit(death_dates_float[-fitpts:], np.log10(death[-fitpts:]), 1)
+                xfit_death = np.linspace(death_dates_float[-fitpts] - fitpts_ext*dt, death_dates_float[-1] + fitpts_ext*dt, 10)
+                ax12.plot(xfit_death, 10**np.poly1d(logfit_death)(xfit_death), '--', lw=2, alpha=0.6, color=cd.get_color())
+            except:
+                print('plot_data(): error logfit death')
+
+            try:
+                logfit_recov = np.polyfit(recov_dates_float[-fitpts:], np.log10(recov[-fitpts:]), 1)
+                xfit_recov = np.linspace(recov_dates_float[-fitpts] - fitpts_ext*dt, recov_dates_float[-1] + fitpts_ext*dt, 10)
+                ax13.plot(xfit_recov, 10**np.poly1d(logfit_recov)(xfit_recov), '--', lw=2, alpha=0.6, color=cr.get_color())
+            except:
+                print('plot_data(): error logfit recovery')
+
+            ax11.semilogy(cases_dates_float[-fitpts:], cases[-fitpts:], 'o', color=cc.get_color(), alpha=0.6, label=country)
+            ax12.semilogy(death_dates_float[-fitpts:], death[-fitpts:], 'o', color=cd.get_color(), alpha=0.6, label=country)
+            ax13.semilogy(recov_dates_float[-fitpts:], recov[-fitpts:], 'o', color=cr.get_color(), alpha=0.6, label=country)
 
 
         ax11.set_ylabel('Cumul. cases')
@@ -117,14 +147,14 @@ class Covid_analysis_wiki():
         ax11.set_xlabel('Days')
         ax12.set_xlabel('Days')
         ax13.set_xlabel('Days')
-        ax11.legend()
+        ax11.legend(fontsize=9)
         ax21.set_ylabel('Daily cases')
         ax22.set_ylabel('Daily deaths')
         ax23.set_ylabel('Daily recoveries')
         ax21.set_xlabel('Days')
         ax22.set_xlabel('Days')
         ax23.set_xlabel('Days')
-        ax21.legend()
+        ax21.legend(fontsize=9)
         fig1.tight_layout()
         fig2.tight_layout()
         

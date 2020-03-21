@@ -6,13 +6,14 @@ import wget, os
 import dateutil
 
 
-# TODO fix Mainland_China, check other countries
+# some valid names: Mainland_China, Italy, France, United_States, United_Kingdom, Spain, Germany, 
 
+# TODO Netherlands is broken, only cases and deaths given, no recoveries
 
 class Covid_analysis_wiki():
     
 
-    def __init__(self, countries=['Italy','France'], download=False, fitpts=5, fitpts_ext=10):
+    def __init__(self, countries=['Italy','France'], download=False, fitpts=5, fitpts_ext=10, procapite=True):
         ''' 
         plot covid data of countries from their wikipedia pages.
         fit the log of the last 'fitpts' points, extend the plot to +- 'fitpts_ext' points
@@ -27,7 +28,20 @@ class Covid_analysis_wiki():
             if download:
                 self.download(country)
             self.read_file(country)
-        self.plot_data(fitpts=fitpts, fitpts_ext=fitpts_ext)
+        self.plot_data(fitpts=fitpts, fitpts_ext=fitpts_ext, procapite=procapite)
+
+
+    def population(self,country):
+        if country == 'Italy':          pop =    60486199
+        if country == 'United_States':  pop =   327200000
+        if country == 'Mainland_China': pop =  1386000000
+        if country == 'Spain':          pop =    46660000
+        if country == 'France':         pop =    66990000
+        if country == 'United_Kingdom': pop =    66440000
+        if country == 'Netherlands':    pop =    17180000
+        if country == 'Germany':        pop =    82790000
+        if country == 'South_Korea':    pop =    51470000
+        return pop
 
 
     def download(self, country):
@@ -46,25 +60,18 @@ class Covid_analysis_wiki():
             lines = f.readlines()
         # get data:
         found_lines = [line for line in lines if re.match('{{Medical cases chart/Row\|202', line)]
-        data_matrix = [f.replace('|||','|').split(sep='|')[1:5] for f in found_lines]
-        #data_matrix = [f.split(sep='|')[1:5] for f in found_lines]
-        #print(data_matrix)
+        if country == 'Mainland_China':
+            data_matrix = [f.replace('|||','|').split(sep='|')[1:5] for f in found_lines]
+        else:
+            data_matrix = [f.split(sep='|')[1:5] for f in found_lines]
 
         for i,d in enumerate(data_matrix):
-            print('---')
-            print(i,d)
             for j,dd in enumerate(d[1:]):
-                print(j, dd)
                 try:
                     int(dd)
                 except:
-                    print(data_matrix[i][j+1])
                     data_matrix[i][j+1] = ''
-                    print(data_matrix[i])
-                    print('-corr')
-        print(data_matrix)
-        
-        #return data_matrix
+        print(data_matrix) 
         # avoid empty data:
         death_dates = [i[0] for i in data_matrix if i[1]!='' and not i[1].startswith('(')]
         recov_dates = [i[0] for i in data_matrix if i[2]!='' and not i[2].startswith('(')]
@@ -83,7 +90,7 @@ class Covid_analysis_wiki():
         return data_matrix
 
    
-    def plot_data(self, fitpts=5, fitpts_ext=10):
+    def plot_data(self, fitpts=5, fitpts_ext=10, procapite=True):
         d = self.d_data
         fig1 = plt.figure('cumulative', clear=True, figsize=(5,8))
         ax11 = fig1.add_subplot(311)
@@ -95,23 +102,29 @@ class Covid_analysis_wiki():
         ax23 = fig2.add_subplot(313, sharex=ax11)
 
         for country in d:
+            if procapite:
+                pop = self.population(country)
+            else:
+                pop = 1
+
             death_dates = d[country]['death_dates']
             recov_dates = d[country]['recov_dates']
             cases_dates = d[country]['cases_dates']
             death_dates_float = np.array([dateutil.parser.parse(i).timestamp() for i in death_dates])
             recov_dates_float = np.array([dateutil.parser.parse(i).timestamp() for i in recov_dates])
             cases_dates_float = np.array([dateutil.parser.parse(i).timestamp() for i in cases_dates])
-            death = d[country]['death']
-            recov = d[country]['recov']
-            cases = d[country]['cases']
+
+            death = d[country]['death']/pop
+            recov = d[country]['recov']/pop
+            cases = d[country]['cases']/pop
 
             # plots:
             cc, = ax11.semilogy(cases_dates_float, cases, '-o', mfc='none', mew=1, alpha=0.7)
             cd, = ax12.semilogy(death_dates_float, death, '-o', mfc='none', mew=1, alpha=0.7)
             cr, = ax13.semilogy(recov_dates_float, recov, '-o', mfc='none', mew=1, alpha=0.7)
-            ax21.plot(cases_dates_float[1:], np.diff(cases), '-o', alpha=0.6, label=country)
-            ax22.plot(death_dates_float[1:], np.diff(death), '-o', alpha=0.6, label=country)
-            ax23.plot(recov_dates_float[1:], np.diff(recov), '-o', alpha=0.6, label=country)
+            ax21.semilogy(cases_dates_float[1:], np.diff(cases), '-o', alpha=0.6, label=country)
+            ax22.semilogy(death_dates_float[1:], np.diff(death), '-o', alpha=0.6, label=country)
+            ax23.semilogy(recov_dates_float[1:], np.diff(recov), '-o', alpha=0.6, label=country)
             
             # fit ot log:
             dt = 86400 # = np.diff(cases_dates_float)[-1]
@@ -140,21 +153,25 @@ class Covid_analysis_wiki():
             ax12.semilogy(death_dates_float[-fitpts:], death[-fitpts:], 'o', color=cd.get_color(), alpha=0.6, label=country)
             ax13.semilogy(recov_dates_float[-fitpts:], recov[-fitpts:], 'o', color=cr.get_color(), alpha=0.6, label=country)
 
-
-        ax11.set_ylabel('Cumul. cases')
-        ax12.set_ylabel('Cumul. deaths')
-        ax13.set_ylabel('Cumul. recoveries')
+        proc = ' per capita' if procapite else ''
+        ax11.set_ylabel('Cumul. cases'+proc)
+        ax12.set_ylabel('Cumul. deaths'+proc)
+        ax13.set_ylabel('Cumul. recoveries'+proc)
         ax11.set_xlabel('Days')
         ax12.set_xlabel('Days')
         ax13.set_xlabel('Days')
-        ax11.legend(fontsize=9)
-        ax21.set_ylabel('Daily cases')
-        ax22.set_ylabel('Daily deaths')
-        ax23.set_ylabel('Daily recoveries')
+        ax11.legend(fontsize=8,labelspacing=0)
+        ax12.legend(fontsize=8,labelspacing=0)
+        ax13.legend(fontsize=8,labelspacing=0)
+        ax21.set_ylabel('Daily cases'+proc)
+        ax22.set_ylabel('Daily deaths'+proc)
+        ax23.set_ylabel('Daily recoveries'+proc)
         ax21.set_xlabel('Days')
         ax22.set_xlabel('Days')
         ax23.set_xlabel('Days')
-        ax21.legend(fontsize=9)
+        ax21.legend(fontsize=8,labelspacing=0)
+        ax22.legend(fontsize=8,labelspacing=0)
+        ax23.legend(fontsize=8,labelspacing=0)
         fig1.tight_layout()
         fig2.tight_layout()
         
@@ -168,92 +185,3 @@ class Covid_analysis_wiki():
         ax23.xaxis.set_major_formatter(formatter)
 
 
-    #TODOc#
-#    d_cases_day = {}
-#    d_deaths_day = {}
-#    d_cases = {}
-#    d_deaths = {}
-#    
-#    fig = plt.figure('covid_xls cumulative', clear=True)
-#    ax1 = fig.add_subplot(121)
-#    ax2 = fig.add_subplot(122, sharex=ax1)
-#
-#    fig1 = plt.figure('covid_xls per day', clear=True)
-#    ax11 = fig1.add_subplot(121)
-#    ax12 = fig1.add_subplot(122, sharex=ax11)
-#    
-#    # get data from data.xls:
-#    book = xlrd.open_workbook('data.xls')
-#    sheet = book.sheet_by_index(0)
-#    dates_float = sheet.col_values(0)
-#    countries_all = sheet.col_values(1)
-#    newconfcases = sheet.col_values(2)
-#    newdeaths = sheet.col_values(3)
-#    cases_all = np.array(list(zip(countries_all, dates_float, newconfcases)))[1:]
-#    deaths_all = np.array(list(zip(countries_all, dates_float, newdeaths)))[1:]
-#    
-#    for country in countries:
-#        # populate with dates_float, data:
-#        c = np.array([[float(i[1]), float(i[2])] for i in cases_all if i[0]==country])
-#        d = np.array([[float(i[1]), float(i[2])] for i in deaths_all if i[0]==country])
-#        
-#        # per day: 
-#        d_cases_day[country] = np.copy(c[::-1])
-#        d_deaths_day[country] = np.copy(d[::-1])
-#
-#        # cumulative:
-#        d_cases[country] = np.copy(c[::-1])
-#        d_deaths[country] = np.copy(d[::-1])
-#        d_cases[country][:,1] = np.cumsum(d_cases[country][:,1])
-#        d_deaths[country][:,1] = np.cumsum(d_deaths[country][:,1])
-#
-#        # fit of last fitpts:
-#        xfit0c = d_cases[country][-fitpts:,0]
-#        xfit0d = d_deaths[country][-fitpts:,0]
-#        logfit_cases = np.polyfit(xfit0c, np.log10(d_cases[country][-fitpts:,1]), 1)
-#        logfit_deaths = np.polyfit(xfit0d, np.log10(d_deaths[country][-fitpts:,1]), 1)
-#        
-#        # dates as days:
-#        dates_time_c = [str(datetime.datetime(*xlrd.xldate_as_tuple(a, book.datemode)).date()) for a in d_cases[country][:,0]]
-#        dates_time_d = [str(datetime.datetime(*xlrd.xldate_as_tuple(a, book.datemode)).date()) for a in d_deaths[country][:,0]]
-#
-#        # plots: 
-#        p1, = ax1.semilogy(d_cases[country][:,0], d_cases[country][:,1], '-o', alpha=0.4, label=country)
-#        p2, = ax2.semilogy(d_deaths[country][:,0], d_deaths[country][:,1], '-o', alpha=0.4, label=country)
-#        
-#        xfit1c = np.arange(xfit0c[0], xfit0c[-1] + fitpts_ext)
-#        xfit1d = np.arange(xfit0d[0], xfit0d[-1] + fitpts_ext)
-#        ax1.plot(xfit1c, 10**np.poly1d(logfit_cases)(xfit1c), '--', alpha=0.6, color=p1.get_color())
-#        ax2.plot(xfit1d, 10**np.poly1d(logfit_deaths)(xfit1d), '--', alpha=0.6, color=p2.get_color())
-#        
-#        p11, = ax11.semilogy(d_cases_day[country][:,0], d_cases_day[country][:,1], '-o', alpha=0.4, label=country)
-#        p12, = ax12.semilogy(d_deaths_day[country][:,0], d_deaths_day[country][:,1], '-o', alpha=0.4, label=country)
-#
-#    
-#    ax1.legend()
-#    ax2.legend()
-#    ax11.legend()
-#    ax12.legend()
-#    ax1.set_xlabel('Days')
-#    ax2.set_xlabel('Days')
-#    ax1.set_ylabel('Cumulative cases')
-#    ax2.set_ylabel('Cumulative deaths')
-#    ax11.set_xlabel('Days')
-#    ax12.set_xlabel('Days')
-#    ax11.set_ylabel('Daily cases')
-#    ax12.set_ylabel('Daily deaths')
-#    fig.tight_layout()
-#    fig1.tight_layout()
-#
-#    from matplotlib.ticker import FuncFormatter
-#    formatter = FuncFormatter(lambda x_val, tick_pos: str(datetime.datetime(*xlrd.xldate_as_tuple(x_val, book.datemode)).date()).lstrip('2020'))
-#    ax1.xaxis.set_major_formatter(formatter)
-#    ax2.xaxis.set_major_formatter(formatter)
-#    ax11.xaxis.set_major_formatter(formatter)
-#    ax12.xaxis.set_major_formatter(formatter)
-#
-#
-#    #return d_cases, d_deaths
-#    #return dates_time_d
-#
-#

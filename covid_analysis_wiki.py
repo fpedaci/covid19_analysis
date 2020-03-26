@@ -2,33 +2,38 @@ import numpy as np
 import matplotlib.pyplot as plt
 import re
 import datetime
-import wget, os
+import wget, os, sys
 import dateutil
 
 
-# some valid names: Mainland_China, Italy, France, United_States, United_Kingdom, Spain, Germany, 
+# some valid names: 
+# Mainland_China, Italy, France, United_States, United_Kingdom, Spain, Germany, 
 
-# TODO Netherlands is broken, only cases and deaths given, no recoveries
+#TODO
+# Mainland_China error: seems that the data format changed from | to ; 
+
 
 class Covid_analysis_wiki():
     
 
-    def __init__(self, countries=['Italy','France'], download=False, fitpts=5, fitpts_ext=10, procapite=True):
+    def __init__(self, countries=['Italy','France'], download=False, fitpts=5, fitpts_ext=10, procapite=True, verbose=False):
         ''' 
         plot covid data of countries from their wikipedia pages.
         fit the log of the last 'fitpts' points, extend the plot to +- 'fitpts_ext' points
 
         ex. usage: 
-            covid_analysis_wiki.Covid_analysis_wiki(download=1, countries=['Italy','France','United_States'])
+            covid_analysis_wiki.Covid_analysis_wiki(download=True, countries=['Italy','France','United_States'], procapite=True)
         '''
         self.wiki_page = 'https://en.wikipedia.org/w/index.php?title=Template:2019%E2%80%9320_coronavirus_pandemic_data/'
         self.d_data = {}
+        self.verbose = verbose
         
         for country in countries:
             if download:
                 self.download(country)
             self.read_file(country)
         self.plot_data(fitpts=fitpts, fitpts_ext=fitpts_ext, procapite=procapite)
+
 
 
     def population(self,country):
@@ -44,15 +49,20 @@ class Covid_analysis_wiki():
         return pop
 
 
+
     def download(self, country):
         print(f'covid_analysis_wiki.download(): downloading {country}')
         filename = f'wiki_{country}.txt'
         if filename in os.listdir():
             os.rename(filename, filename+'.old')
         address = self.wiki_page+country+'_medical_cases_chart&action=edit'
-        print(f'covid_analysis_wiki.download(): {address}')
+        if self.verbose: 
+            print(f'covid_analysis_wiki.download(): {address}')
+        sys.stdout = open(os.devnull, "w")
         wget.download(address, filename)
-        
+        sys.stdout = sys.__stdout__
+
+
     
     def read_file(self, country):
         # read country file:
@@ -60,6 +70,7 @@ class Covid_analysis_wiki():
             lines = f.readlines()
         # get data:
         found_lines = [line for line in lines if re.match('{{Medical cases chart/Row\|202', line)]
+        
         if country == 'Mainland_China':
             data_matrix = [f.replace('|||','|').split(sep='|')[1:5] for f in found_lines]
         else:
@@ -71,7 +82,10 @@ class Covid_analysis_wiki():
                     int(dd)
                 except:
                     data_matrix[i][j+1] = ''
-        print(data_matrix) 
+        
+        if self.verbose: 
+            print(data_matrix) 
+        
         # avoid empty data:
         death_dates = [i[0] for i in data_matrix if i[1]!='' and not i[1].startswith('(')]
         recov_dates = [i[0] for i in data_matrix if i[2]!='' and not i[2].startswith('(')]
@@ -147,7 +161,7 @@ class Covid_analysis_wiki():
                 xfit_recov = np.linspace(recov_dates_float[-fitpts] - fitpts_ext*dt, recov_dates_float[-1] + fitpts_ext*dt, 10)
                 ax13.plot(xfit_recov, 10**np.poly1d(logfit_recov)(xfit_recov), '--', lw=2, alpha=0.6, color=cr.get_color())
             except:
-                print('plot_data(): error logfit recovery')
+                print(f'plot_data(): {country} error logfit recovery')
 
             ax11.semilogy(cases_dates_float[-fitpts:], cases[-fitpts:], 'o', color=cc.get_color(), alpha=0.6, label=country)
             ax12.semilogy(death_dates_float[-fitpts:], death[-fitpts:], 'o', color=cd.get_color(), alpha=0.6, label=country)

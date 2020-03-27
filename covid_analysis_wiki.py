@@ -69,22 +69,35 @@ class Covid_analysis_wiki():
         with open(f'wiki_{country}.txt', 'r') as f:
             lines = f.readlines()
         # get data:
+        # format until 200327:
         found_lines = [line for line in lines if re.match('{{Medical cases chart/Row\|202', line)]
+        data_format = 'old'
+        if self.verbose: print(f'covid_analysis_wiki.read_file(): found_lines: {found_lines}')
         
+        # format from 200327:
+        if found_lines == []:
+            found_lines = [line for line in lines if re.match('202', line)]
+            data_format = '200327'
+        if self.verbose: print(f'covid_analysis_wiki.read_file(): found_lines: {found_lines}')
+            
         if country == 'Mainland_China':
-            data_matrix = [f.replace('|||','|').split(sep='|')[1:5] for f in found_lines]
-        else:
+            #data_matrix = [f.replace('|||','|').split(sep='|')[1:5] for f in found_lines]
+            found_lines = [f.replace(';;;',';') for f in found_lines]
+        
+        if data_format == 'old':
             data_matrix = [f.split(sep='|')[1:5] for f in found_lines]
+        elif data_format == '200327':
+            data_matrix = [f.split(sep=';')[:4] for f in found_lines]
 
-        for i,d in enumerate(data_matrix):
-            for j,dd in enumerate(d[1:]):
-                try:
-                    int(dd)
-                except:
-                    data_matrix[i][j+1] = ''
+#        for i,d in enumerate(data_matrix):
+#            for j,dd in enumerate(d[1:]):
+#                try:
+#                    int(dd)
+#                except:
+#                    data_matrix[i][j+1] = ''
         
         if self.verbose: 
-            print(data_matrix) 
+            if self.verbose: print(f'covid_analysis_wiki.read_file(): data_matrix: {data_matrix}') 
         
         # avoid empty data:
         death_dates = [i[0] for i in data_matrix if i[1]!='' and not i[1].startswith('(')]

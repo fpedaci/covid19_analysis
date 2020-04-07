@@ -72,7 +72,7 @@ class Covid_analysis_wiki():
 
     
     def ntests_download(self):
-        ''' download tests .csv from blob:https://ourworldindata.org/e409dc8f-f005-4693-8874-7ecdd659df6b '''
+        ''' download tests .csv driving Chrome https://ourworldindata.org '''
         import webbot, time 
         print('covid_analysis_wiki.download_tests(): downloading n.tests using Chromium...')
         # driving Chrome to download:
@@ -128,8 +128,10 @@ class Covid_analysis_wiki():
         self.d_data[country]['ntests'] = np.array([int(d[k]['Cumulative total tests']) for k in d if d[k]['Entity'].startswith(country_no_)]) # and d[k]['Entity'].find('inconsistent') == -1])
         if country == 'United_States':
             print('covid_analysis_wiki.ntests_make_country_data(): selecting data for United State')
-            self.d_data[country]['ntests_dates'] = [d[k]['Date'] for k in d if d[k]['Entity'].startswith(country_no_) and d[k]['Entity'].find('inconsistent') >= 0]
-            self.d_data[country]['ntests'] = np.array([int(d[k]['Cumulative total tests']) for k in d if d[k]['Entity'].startswith(country_no_) and d[k]['Entity'].find('inconsistent') >= 0])
+            self.d_data[country]['ntests_dates'] = [d[k]['Date'] for k in d if d[k]['Entity'] ==country_no_]
+            self.d_data[country]['ntests'] = np.array([int(d[k]['Cumulative total tests']) for k in d if d[k]['Entity'] == country_no_])
+            #self.d_data[country]['ntests_dates'] = [d[k]['Date'] for k in d if d[k]['Entity'].startswith(country_no_) and d[k]['Entity'].find('inconsistent') >= 0]
+            #self.d_data[country]['ntests'] = np.array([int(d[k]['Cumulative total tests']) for k in d if d[k]['Entity'].startswith(country_no_) and d[k]['Entity'].find('inconsistent') >= 0])
 
         self.d_data[country]['ntests_dates_float'] = np.array([dateutil.parser.parse(i).timestamp() for i in self.d_data[country]['ntests_dates']])
 
@@ -289,10 +291,10 @@ class Covid_analysis_wiki():
             ax41.plot(ntests_dates_float, ntests, '-o', alpha=0.7, label=country if len(ntests) else None, ms=marker_size)
             ax42.plot(casesXntests_dates_float, casesXntests, '-o', alpha=0.7, label=country if len(casesXntests) else None, ms=marker_size)
             try: 
-                ax43.plot(casesXntests_dates_float[1:], np.diff(casesXntests), '-o', alpha=0.7, label=country if len(casesXntests) else None, ms=marker_size)
-                dc, = ax44.plot(casesXntests_dates_float[1:], np.diff(casesntests_cases)/np.diff(casesntests_ntests), '-o', alpha=0.7, label=country if len(casesXntests) else None, ms=marker_size, lw=0.5)
+                ax43.plot(ntests_dates_float[1:], np.diff(ntests), '-o', alpha=0.7, label=country if len(casesXntests) else None, ms=marker_size)
+                dc, = ax44.plot(casesXntests_dates_float[1:], np.diff(casesntests_cases)/np.diff(casesntests_ntests), '-', alpha=0.7, ms=marker_size, lw=0.1)
                 dntests_mn, dntests_st = self.running_stats(np.diff(casesntests_cases)/np.diff(casesntests_ntests), npts=3)
-                ax44.plot(casesXntests_dates_float[1:], dntests_mn, '-', alpha=0.7, color=dc.get_color())
+                ax44.plot(casesXntests_dates_float[1:], dntests_mn, '-', alpha=0.7, color=dc.get_color(), label=country if len(casesXntests) else None)
                 ax44.fill_between(casesXntests_dates_float[1:], dntests_mn - dntests_st, dntests_mn + dntests_st, color=dc.get_color(), alpha=0.2, lw=0  )
             except:
                 print(f'covid_analysis_wiki.plot_data(): {country} casesXntests Error.')
@@ -302,19 +304,19 @@ class Covid_analysis_wiki():
             try:
                 logfit_cases = np.polyfit(cases_dates_float[-fitpts:], np.log10(cases[-fitpts:]), 1)
                 xfit_cases = np.linspace(cases_dates_float[-fitpts] - fitpts_ext*dt, cases_dates_float[-1] + fitpts_ext*dt, 10)
-                ax11.plot(xfit_cases, 10**np.poly1d(logfit_cases)(xfit_cases), '--', lw=2, alpha=0.6, color=cc.get_color(), ms=marker_size)
+                ax11.plot(xfit_cases, 10**np.poly1d(logfit_cases)(xfit_cases), '--', lw=1, alpha=0.6, color=cc.get_color(), ms=marker_size)
             except:
                 print('plot_data(): error logfit cases')
             try:
                 logfit_death = np.polyfit(death_dates_float[-fitpts:], np.log10(death[-fitpts:]), 1)
                 xfit_death = np.linspace(death_dates_float[-fitpts] - fitpts_ext*dt, death_dates_float[-1] + fitpts_ext*dt, 10)
-                ax12.plot(xfit_death, 10**np.poly1d(logfit_death)(xfit_death), '--', lw=2, alpha=0.6, color=cd.get_color(), ms=marker_size)
+                ax12.plot(xfit_death, 10**np.poly1d(logfit_death)(xfit_death), '--', lw=1, alpha=0.6, color=cd.get_color(), ms=marker_size)
             except:
                 print('plot_data(): error logfit death')
             try:
                 logfit_recov = np.polyfit(recov_dates_float[-fitpts:], np.log10(recov[-fitpts:]), 1)
                 xfit_recov = np.linspace(recov_dates_float[-fitpts] - fitpts_ext*dt, recov_dates_float[-1] + fitpts_ext*dt, 10)
-                ax13.plot(xfit_recov, 10**np.poly1d(logfit_recov)(xfit_recov), '--', lw=2, alpha=0.6, color=cr.get_color(), ms=marker_size)
+                ax13.plot(xfit_recov, 10**np.poly1d(logfit_recov)(xfit_recov), '--', lw=1, alpha=0.6, color=cr.get_color(), ms=marker_size)
             except:
                 print(f'plot_data(): {country} error logfit recovery')
             

@@ -14,7 +14,7 @@ import dateutil
 class Covid_analysis_wiki():
     
 
-    def __init__(self, countries=['Italy','France'], download_wiki=False, download_ntests=True, fitpts=5, fitpts_ext=10, procapite=True, verbose=False, doit=True):
+    def __init__(self, countries=['Italy','France'], download_wiki=False, download_ntests=True, dotests=False, fitpts=5, fitpts_ext=10, procapite=True, verbose=False, doit=True):
         ''' 
         Plot covid data of countries from their wikipedia pages.
         
@@ -33,25 +33,31 @@ class Covid_analysis_wiki():
         '''
 
         self.wiki_page = 'https://en.wikipedia.org/w/index.php?title=Template:2019%E2%80%9320_coronavirus_pandemic_data/'
-        self.ntests_filename = 'full-list-total-tests-for-covid-19.csv'
+        self.ntests_github = 'https://github.com/owid/covid-19-data/blob/master/public/data/testing/covid-testing-all-observations.csv'
         self.d_data = {}
         self.verbose = verbose
         
         if doit:
             # get ntests:
             if download_ntests:
-                self.ntests_download()
-            self.ntests_make_dict_from_csv(self.ntests_filename)
+                self.ntests_download(mode=2)
+            else:
+                self.ntests_filename = 'covid-testing-all-observations.csv'
+            if dotests:
+                self.ntests_make_dict_from_csv(self.ntests_filename)
             # get cases, deaths, recov:
             for country in countries:
                 self.d_data[country] = {}
                 if download_wiki:
                     self.wiki_download(country)
                 self.read_file(country)
-                self.ntests_make_country_data(country)
-                self.make_casesXntests(country)
+                if dotests:
+                    self.ntests_make_country_data(country)
+                    self.make_casesXntests(country)
             # plot all:
             self.plot_data(fitpts=fitpts, fitpts_ext=fitpts_ext, procapite=procapite)
+            if dotests:
+                self.plot_data_ntests()
 
 
 
@@ -71,36 +77,43 @@ class Covid_analysis_wiki():
 
 
     
-    def ntests_download(self):
-        ''' download tests .csv driving Chrome https://ourworldindata.org '''
-        import webbot, time 
-        print('covid_analysis_wiki.download_tests(): downloading n.tests using Chromium...')
-        # driving Chrome to download:
-        driver = webbot.Browser()                              
-        driver.go_to('https://ourworldindata.org/covid-testing')
-        driver.scrolly(4000)
-        driver.click(text='DATA', number=1)
-        driver.click(text=self.ntests_filename) 
-        timeout = 10
-        filesizes = 0
-        t0 = time.time()
-        # wait until download is done:
-        while True:
-            time.sleep(.5)
-            try:
-                filesize = os.path.getsize('/home/francesco/Downloads/' + self.ntests_filename)
-            except:
-                filesize = 0
-            filesizes = np.append(filesizes, filesize)    
-            if filesize>0 and len(filesizes)>3 and not np.any(np.diff(filesizes)[:-3]):
-                break
-            else:
-                if time.time() - t0 > timeout:
-                    raise TimeoutError('timeout in downlaoding.')
-        driver.close_current_tab()
-        # mv downloaded file to here:
-        os.replace('/home/francesco/Downloads/' + self.ntests_filename, '/home/francesco/scripts/repositories/covid19_analysis/' + self.ntests_filename)
-        print('covid_analysis_wiki.download_tests(): done.')
+    def ntests_download(self, mode='2'):
+        ''' mode = 1 : download tests .csv driving Chrome https://ourworldindata.org 
+            mode = 2 : from github https://github.com/owid/covid-19-data/blob/master/public/data/testing/covid-testing-all-observations.csv
+        '''
+        if mode == 1:
+            import webbot, time 
+            print('covid_analysis_wiki.download_tests(): downloading n.tests using Chromium...')
+            # driving Chrome to download:
+            driver = webbot.Browser()                              
+            driver.go_to('https://ourworldindata.org/covid-testing')
+            driver.scrolly(4000)
+            driver.click(text='DATA', number=1)
+            driver.click(text=self.ntests_filename) 
+            timeout = 10
+            filesizes = 0
+            t0 = time.time()
+            # wait until download is done:
+            while True:
+                time.sleep(.5)
+                try:
+                    filesize = os.path.getsize('/home/francesco/Downloads/' + self.ntests_filename)
+                except:
+                    filesize = 0
+                filesizes = np.append(filesizes, filesize)    
+                if filesize>0 and len(filesizes)>3 and not np.any(np.diff(filesizes)[:-3]):
+                    break
+                else:
+                    if time.time() - t0 > timeout:
+                        raise TimeoutError('timeout in downlaoding.')
+            driver.close_current_tab()
+            # mv downloaded file to here:
+            os.replace('/home/francesco/Downloads/' + self.ntests_filename, '/home/francesco/scripts/repositories/covid19_analysis/' + self.ntests_filename)
+            print('covid_analysis_wiki.download_tests(): done.')
+        elif mode == 2:
+            import wget
+            wget.download(self.ntests_github)
+            self.ntests_filename = 'covid-testing-all-observations.csv'
 
 
 
@@ -236,6 +249,53 @@ class Covid_analysis_wiki():
 
 
 
+    def plot_data_ntests(self):
+        ''' plot data with ntests '''
+        fig4 = plt.figure('daily/ntests', clear=True, figsize=(9,5.54))
+        ax41 = fig4.add_subplot(221)
+        ax42 = fig4.add_subplot(222, sharex=ax41)
+        ax43 = fig4.add_subplot(223, sharex=ax41)
+        ax44 = fig4.add_subplot(224, sharex=ax41)
+        
+        for country in d:
+            ntests       = d[country]['ntests'] #/pop ?
+            casesXntests = d[country]['casesXntests']
+            casesntests_cases  = d[country]['casesntests_cases']
+            casesntests_ntests = d[country]['casesntests_ntests']
+            ntests_dates_float       = self.d_data[country]['ntests_dates_float']
+            casesXntests_dates_float = self.d_data[country]['casesXntests_dates_float']
+            
+            ax41.plot(ntests_dates_float, ntests, '-o', alpha=0.7, label=country if len(ntests) else None, ms=marker_size)
+            ax42.plot(casesXntests_dates_float, casesXntests, '-o', alpha=0.7, label=country if len(casesXntests) else None, ms=marker_size)
+            try: 
+                ax43.plot(ntests_dates_float[1:], np.diff(ntests), '-o', alpha=0.7, label=country if len(casesXntests) else None, ms=marker_size)
+                dc, = ax44.plot(casesXntests_dates_float[1:], np.diff(casesntests_cases)/np.diff(casesntests_ntests), '-', alpha=0.7, ms=marker_size, lw=0.1)
+                dntests_mn, dntests_st = self.running_stats(np.diff(casesntests_cases)/np.diff(casesntests_ntests), npts=3)
+                ax44.plot(casesXntests_dates_float[1:], dntests_mn, '-', alpha=0.7, color=dc.get_color(), label=country if len(casesXntests) else None)
+                ax44.fill_between(casesXntests_dates_float[1:], dntests_mn - dntests_st, dntests_mn + dntests_st, color=dc.get_color(), alpha=0.2, lw=0  )
+            except:
+                print(f'covid_analysis_wiki.plot_data(): {country} casesXntests Error.')
+        ax41.set_xlabel('Days')
+        ax42.set_xlabel('Days')
+        ax43.set_xlabel('Days')
+        ax44.set_xlabel('Days')
+        ax41.set_ylabel('Tot.tests' + proc)
+        ax42.set_ylabel('Tot.cases / Tot.tests' + proc)
+        ax43.set_ylabel('Daily tests' + proc)
+        ax44.set_ylabel('Daily cases / Daily tests' + proc)
+        ax41.legend(fontsize=8,labelspacing=0)
+        ax42.legend(fontsize=8,labelspacing=0)
+        ax43.legend(fontsize=8,labelspacing=0)
+        ax44.legend(fontsize=8,labelspacing=0)
+        # make xticklabels as date strings:
+        from matplotlib.ticker import FuncFormatter
+        formatter = FuncFormatter(lambda x_val, tick_pos: str(datetime.datetime.fromtimestamp(x_val).date()).lstrip('2020'))
+        ax41.xaxis.set_major_formatter(formatter)
+        ax42.xaxis.set_major_formatter(formatter)
+        fig4.tight_layout()
+
+
+
     def plot_data(self, fitpts=5, fitpts_ext=10, procapite=True):
         d = self.d_data
         marker_size= 3
@@ -251,11 +311,6 @@ class Covid_analysis_wiki():
         ax31 = fig3.add_subplot(311)
         ax32 = fig3.add_subplot(312)
         ax33 = fig3.add_subplot(313)
-        fig4 = plt.figure('daily/ntests', clear=True, figsize=(9,5.54))
-        ax41 = fig4.add_subplot(221)
-        ax42 = fig4.add_subplot(222, sharex=ax41)
-        ax43 = fig4.add_subplot(223, sharex=ax41)
-        ax44 = fig4.add_subplot(224, sharex=ax41)
 
         for country in d:
             print(f'covid_analysis_wiki.plot_data(): plotting {country}')
@@ -264,16 +319,9 @@ class Covid_analysis_wiki():
             death_dates_float        = self.d_data[country]['death_dates_float']
             recov_dates_float        = self.d_data[country]['recov_dates_float']
             cases_dates_float        = self.d_data[country]['cases_dates_float']
-            ntests_dates_float       = self.d_data[country]['ntests_dates_float']
-            casesXntests_dates_float = self.d_data[country]['casesXntests_dates_float']
-
             death        = d[country]['death']/pop
             recov        = d[country]['recov']/pop
             cases        = d[country]['cases']/pop
-            ntests       = d[country]['ntests'] #/pop ?
-            casesXntests = d[country]['casesXntests']
-            casesntests_cases  = d[country]['casesntests_cases']
-            casesntests_ntests = d[country]['casesntests_ntests']
             
             # plots:
             cc, = ax11.semilogy(cases_dates_float, cases, '-o', mfc='none', mew=1, alpha=0.7, ms=marker_size)
@@ -287,18 +335,23 @@ class Covid_analysis_wiki():
             ax31.plot(cases[1:], np.diff(cases), '-o', alpha=0.7, label=country, ms=marker_size)
             ax32.plot(death[1:], np.diff(death), '-o', alpha=0.7, label=country, ms=marker_size)
             ax33.plot(recov[1:], np.diff(recov), '-o', alpha=0.7, label=country, ms=marker_size)
+           
+            # daily death Vs daily cases:
+            fig4 = plt.figure('d.cases Vs d.deaths'+country, clear=True, figsize=(3,2))
+            ax41 = fig4.add_subplot(111)
+            m = np.min([len(np.diff(cases)), len(np.diff(death))])
+            alphas = np.linspace(0.1,1,m)
+            cols = ([(1,0,0,i) for i in alphas])
+            x = self.running_stats(np.diff(cases)[-m:], npts=10)[0]
+            y = self.running_stats(np.diff(death)[-m:], npts=10)[0]
+            ax41.scatter(x, y, label=country, c=cols, edgecolors='none')
+            for i in range(m-1):
+                ax41.plot([x[i],x[i+1]], [y[i],y[i+1]], 'r-', lw=5, alpha=alphas[i])
+            ax41.legend(fontsize=8,labelspacing=0)
+            ax41.set_xlabel('Daily cases')
+            ax41.set_ylabel('Daily deaths')
+            fig4.tight_layout()
             
-            ax41.plot(ntests_dates_float, ntests, '-o', alpha=0.7, label=country if len(ntests) else None, ms=marker_size)
-            ax42.plot(casesXntests_dates_float, casesXntests, '-o', alpha=0.7, label=country if len(casesXntests) else None, ms=marker_size)
-            try: 
-                ax43.plot(ntests_dates_float[1:], np.diff(ntests), '-o', alpha=0.7, label=country if len(casesXntests) else None, ms=marker_size)
-                dc, = ax44.plot(casesXntests_dates_float[1:], np.diff(casesntests_cases)/np.diff(casesntests_ntests), '-', alpha=0.7, ms=marker_size, lw=0.1)
-                dntests_mn, dntests_st = self.running_stats(np.diff(casesntests_cases)/np.diff(casesntests_ntests), npts=3)
-                ax44.plot(casesXntests_dates_float[1:], dntests_mn, '-', alpha=0.7, color=dc.get_color(), label=country if len(casesXntests) else None)
-                ax44.fill_between(casesXntests_dates_float[1:], dntests_mn - dntests_st, dntests_mn + dntests_st, color=dc.get_color(), alpha=0.2, lw=0  )
-            except:
-                print(f'covid_analysis_wiki.plot_data(): {country} casesXntests Error.')
-
             # fit ot log:
             dt = 86400 # = np.diff(cases_dates_float)[-1]
             try:
@@ -343,14 +396,6 @@ class Covid_analysis_wiki():
         ax31.set_xlabel('Cumul. cases')
         ax32.set_xlabel('Cumul. death')
         ax33.set_xlabel('Cumul. recov.')
-        ax41.set_xlabel('Days')
-        ax42.set_xlabel('Days')
-        ax43.set_xlabel('Days')
-        ax44.set_xlabel('Days')
-        ax41.set_ylabel('Tot.tests' + proc)
-        ax42.set_ylabel('Tot.cases / Tot.tests' + proc)
-        ax43.set_ylabel('Daily tests' + proc)
-        ax44.set_ylabel('Daily cases / Daily tests' + proc)
         ax11.legend(fontsize=8,labelspacing=0)
         ax12.legend(fontsize=8,labelspacing=0)
         ax13.legend(fontsize=8,labelspacing=0)
@@ -360,10 +405,6 @@ class Covid_analysis_wiki():
         ax31.legend(fontsize=8,labelspacing=0)
         ax32.legend(fontsize=8,labelspacing=0)
         ax33.legend(fontsize=8,labelspacing=0)
-        ax41.legend(fontsize=8,labelspacing=0)
-        ax42.legend(fontsize=8,labelspacing=0)
-        ax43.legend(fontsize=8,labelspacing=0)
-        ax44.legend(fontsize=8,labelspacing=0)
         
         # make xticklabels as date strings:
         from matplotlib.ticker import FuncFormatter
@@ -374,13 +415,10 @@ class Covid_analysis_wiki():
         ax21.xaxis.set_major_formatter(formatter)
         ax22.xaxis.set_major_formatter(formatter)
         ax23.xaxis.set_major_formatter(formatter)
-        ax41.xaxis.set_major_formatter(formatter)
-        ax42.xaxis.set_major_formatter(formatter)
         
         fig1.tight_layout()
         fig2.tight_layout()
         fig3.tight_layout()
-        fig4.tight_layout()
 
     
 

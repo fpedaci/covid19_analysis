@@ -32,7 +32,7 @@ class Covid_analysis_wiki():
 
         '''
 
-        self.wiki_page = 'https://en.wikipedia.org/w/index.php?title=Template:2019%E2%80%9320_coronavirus_pandemic_data/'
+        self.wiki_page = 'https://en.wikipedia.org/w/index.php?title=Template:COVID-19_pandemic_data/'
         self.ntests_github = 'https://github.com/owid/covid-19-data/blob/master/public/data/testing/covid-testing-all-observations.csv'
         self.d_data = {}
         self.verbose = verbose
@@ -173,12 +173,12 @@ class Covid_analysis_wiki():
         # format until 200327:
         found_lines = [line for line in lines if re.match('{{Medical cases chart/Row\|202', line)]
         data_format = 'old'
-        if self.verbose: print(f'covid_analysis_wiki.read_file(): found_lines: {found_lines}')
+        if self.verbose: print(f'covid_analysis_wiki.read_file(): old format, found_lines: {found_lines}')
         # format from 200327:
         if found_lines == []:
             found_lines = [line for line in lines if re.match('202', line)]
             data_format = '200327'
-        if self.verbose: print(f'covid_analysis_wiki.read_file(): found_lines: {found_lines}')
+        if self.verbose: print(f'covid_analysis_wiki.read_file(): new format, found_lines: {found_lines}')
             
         if country == 'Mainland_China':
             found_lines = [f.replace(';;;',';') for f in found_lines]
@@ -298,6 +298,8 @@ class Covid_analysis_wiki():
 
     def plot_data(self, fitpts=5, fitpts_ext=10, procapite=True):
         d = self.d_data
+        savw = 7 # savgol filter win
+        savord = 1 # savgol filter polyorder
         marker_size= 3
         fig1 = plt.figure('cumulative', clear=True, figsize=(5,8))
         ax11 = fig1.add_subplot(311)
@@ -324,29 +326,49 @@ class Covid_analysis_wiki():
             cases        = d[country]['cases']/pop
             
             # plots:
-            cc, = ax11.semilogy(cases_dates_float, cases, '-o', mfc='none', mew=1, alpha=0.7, ms=marker_size)
-            cd, = ax12.semilogy(death_dates_float, death, '-o', mfc='none', mew=1, alpha=0.7, ms=marker_size)
-            cr, = ax13.semilogy(recov_dates_float, recov, '-o', mfc='none', mew=1, alpha=0.7, ms=marker_size)
+            cc, = ax11.plot(cases_dates_float, cases, 'o', mfc='none', mew=1, alpha=0.7, ms=marker_size)
+            ax11.plot(cases_dates_float, self.savgol_filter(cases, win=savw, polyorder=savord), '-', alpha=0.9, color=cc.get_color(), label=country)
+            cd, = ax12.plot(death_dates_float, death, 'o', mfc='none', mew=1, alpha=0.7, ms=marker_size)
+            ax12.plot(death_dates_float, self.savgol_filter(death, win=savw, polyorder=savord), '-', alpha=0.9, color=cd.get_color(), label=country)
+            cr, = ax13.plot(recov_dates_float, recov, 'o', mfc='none', mew=1, alpha=0.7, ms=marker_size)
+            try:
+                ax13.plot(recov_dates_float, self.savgol_filter(recov, win=savw, polyorder=savord), '-', alpha=0.9, color=cr.get_color(), label=country)
+            except:
+                pass
             
-            ax21.semilogy(cases_dates_float[1:], np.diff(cases), '-o', alpha=0.6, label=country, ms=marker_size)
-            ax22.semilogy(death_dates_float[1:], np.diff(death), '-o', alpha=0.6, label=country, ms=marker_size)
-            ax23.semilogy(recov_dates_float[1:], np.diff(recov), '-o', alpha=0.6, label=country, ms=marker_size)
+            p21, = ax21.plot(cases_dates_float[1:], np.diff(cases), 'o', alpha=0.3, ms=marker_size)
+            ax21.plot(cases_dates_float[1:], self.savgol_filter(np.diff(cases), win=savw, polyorder=savord), '-', alpha=0.9, color=p21.get_color(), label=country)
+            p22, = ax22.plot(death_dates_float[1:], np.diff(death), 'o', alpha=0.3, ms=marker_size)
+            ax22.plot(death_dates_float[1:], self.savgol_filter(np.diff(death), win=savw, polyorder=savord), '-', alpha=0.9, color=p22.get_color(), label=country)
+            p23, = ax23.plot(recov_dates_float[1:], np.diff(recov), 'o', alpha=0.3, ms=marker_size)
+            try:
+                ax23.plot(recov_dates_float[1:], self.savgol_filter(np.diff(recov), win=savw, polyorder=savord), '-', alpha=0.9, color=p23.get_color(), label=country)
+            except:
+                pass
 
-            ax31.plot(cases[1:], np.diff(cases), '-o', alpha=0.7, label=country, ms=marker_size)
-            ax32.plot(death[1:], np.diff(death), '-o', alpha=0.7, label=country, ms=marker_size)
-            ax33.plot(recov[1:], np.diff(recov), '-o', alpha=0.7, label=country, ms=marker_size)
-           
+            p31, = ax31.plot(cases[1:], np.diff(cases), 'o', alpha=0.3, ms=marker_size)
+            ax31.plot(cases[1:], self.savgol_filter(np.diff(cases), win=savw, polyorder=savord), '-', alpha=0.9, color=p31.get_color(), label=country)
+            p32, = ax32.plot(death[1:], np.diff(death), 'o', alpha=0.3, ms=marker_size)
+            ax32.plot(death[1:], self.savgol_filter(np.diff(death), win=savw, polyorder=savord), '-', alpha=0.9, color=p32.get_color(), label=country)
+            p33, = ax33.plot(recov[1:], np.diff(recov), 'o', alpha=0.3, ms=marker_size)
+            try:
+                ax33.plot(recov[1:], self.savgol_filter(np.diff(recov), win=savw, polyorder=savord), '-', alpha=0.9, color=p33.get_color(), label=country)
+            except:
+                pass
+
             # daily death Vs daily cases:
             fig4 = plt.figure('d.cases Vs d.deaths'+country, clear=True, figsize=(3,2))
             ax41 = fig4.add_subplot(111)
             m = np.min([len(np.diff(cases)), len(np.diff(death))])
-            alphas = np.linspace(0.1,1,m)
+            alphas = np.linspace(0.01,1,m)**2
             cols = ([(1,0,0,i) for i in alphas])
-            x = self.running_stats(np.diff(cases)[-m:], npts=10)[0]
-            y = self.running_stats(np.diff(death)[-m:], npts=10)[0]
-            ax41.scatter(x, y, label=country, c=cols, edgecolors='none')
+            #x = self.running_stats(np.diff(cases), npts=10)[0][-m:]
+            #y = self.running_stats(np.diff(death), npts=10)[0][-m:]
+            x = self.savgol_filter(np.diff(cases), win=savw, polyorder=savord)[-m:]
+            y = self.savgol_filter(np.diff(death), win=savw, polyorder=savord)[-m:]
             for i in range(m-1):
                 ax41.plot([x[i],x[i+1]], [y[i],y[i+1]], 'r-', lw=5, alpha=alphas[i])
+            ax41.scatter(x, y, label=country, c=cols, alpha=0., edgecolors='none')
             ax41.legend(fontsize=8,labelspacing=0)
             ax41.set_xlabel('Daily cases')
             ax41.set_ylabel('Daily deaths')
@@ -373,9 +395,9 @@ class Covid_analysis_wiki():
             except:
                 print(f'plot_data(): {country} error logfit recovery')
             
-            ax11.semilogy(cases_dates_float[-fitpts:], cases[-fitpts:], 'o', color=cc.get_color(), alpha=0.6, label=country, ms=marker_size)
-            ax12.semilogy(death_dates_float[-fitpts:], death[-fitpts:], 'o', color=cd.get_color(), alpha=0.6, label=country, ms=marker_size)
-            ax13.semilogy(recov_dates_float[-fitpts:], recov[-fitpts:], 'o', color=cr.get_color(), alpha=0.6, label=country, ms=marker_size)
+            ax11.plot(cases_dates_float[-fitpts:], cases[-fitpts:], 'o', color=cc.get_color(), alpha=0.6,  ms=marker_size)
+            ax12.plot(death_dates_float[-fitpts:], death[-fitpts:], 'o', color=cd.get_color(), alpha=0.6,  ms=marker_size)
+            ax13.plot(recov_dates_float[-fitpts:], recov[-fitpts:], 'o', color=cr.get_color(), alpha=0.6,  ms=marker_size)
             
         proc = ' per capita' if procapite else ''
         ax11.set_ylabel('Cumul. cases' + proc)
@@ -420,17 +442,50 @@ class Covid_analysis_wiki():
         fig2.tight_layout()
         fig3.tight_layout()
 
-    
+   
 
-    def running_stats(self, sig, npts=5):
+
+    def savgol_filter(self, x, win=5, polyorder=3, plots=0):
+        ''' from https://stackoverflow.com/questions/20618804/how-to-smooth-a-curve-in-the-right-way/26337730#26337730'''
+        import scipy.signal as sig
+        if polyorder >= win:
+            polyorder = win-1
+            print('savgol_filter(): bad polyorder fixed to win-1')
+        if np.mod(win,2) == 0:
+            win = win+1
+            print('Warning savgol_filter, win must be odd: forced win = '+str(win))
+        y = sig.savgol_filter(x, window_length=win, polyorder=polyorder)
+        if plots:
+            plt.figure('savgol_filter()')
+            plt.clf()
+            plt.plot(x, '.')
+            plt.plot(y)
+        return y
+
+
+    def running_stats(self, sig, npts=5, plots=0):
         ''' simple running mean std of sig on windows of npts '''
         if npts%2: 
-            npts = np.clip(npts+1, 1, npts+1)
-        d = (npts-1)/2
-        sigex = np.concatenate((np.repeat(None,d), sig, np.repeat(None,d)))
+            npts = npts + 1 #np.clip(npts+1, 1, npts+1)
+        #d = int(npts/2) #int((npts-1)/2)
+        d = int((npts-1)/2)
+        sigex = np.concatenate((np.repeat(np.nan, d), sig, np.repeat(np.nan, d)))
         mn = []
         st = []
-        for i in np.arange(len(sig)):
+        #for i in np.arange(len(sig)):
+        for i in np.arange(len(sigex)-npts):
             mn = np.append(mn, np.nanmean(sig[i:i+npts]))
-            st = np.append(st,np.nanstd(sig[i:i+npts]))
+            #mn = np.append(mn, np.nanmean(sigex[i:i+npts]))
+            st = np.append(st,np.nanstd(sigex[i:i+npts]))
+            #st = np.append(st,np.nanstd(sig[i:i+npts]))
+        #mn = mn[]
+        if plots:
+            print(npts)
+            print(d)
+            print(len(sig))
+            print(len(sigex))
+            print(len(mn))
+            fig = plt.figure('running_stats', clear=1)
+            plt.plot(sig, '-o')
+            plt.plot(mn, '-')
         return mn, st

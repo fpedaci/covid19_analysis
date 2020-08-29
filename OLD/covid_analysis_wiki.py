@@ -14,7 +14,7 @@ import dateutil
 class Covid_analysis_wiki():
     
 
-    def __init__(self, countries=['Italy','France'], download_wiki=False, download_ntests=True, dotests=False, fitpts=5, fitpts_ext=10, procapite=True, verbose=False, doit=True):
+    def __init__(self, countries=['Italy','France'], download_wiki=False, download_ntests=True, dotests=False, fitpts=5, fitpts_ext=10, procapite=True, verbose=False, doit=True, UKrmlast=False, rmlast=False, filt_win=7):
         ''' 
         Plot covid data of countries from their wikipedia pages.
         
@@ -34,8 +34,12 @@ class Covid_analysis_wiki():
 
         self.wiki_page = 'https://en.wikipedia.org/w/index.php?title=Template:COVID-19_pandemic_data/'
         self.ntests_github = 'https://github.com/owid/covid-19-data/blob/master/public/data/testing/covid-testing-all-observations.csv'
+        self.data_ourworldindata = 'https://covid.ourworldindata.org/data/owid-covid-data.json'
         self.d_data = {}
         self.verbose = verbose
+        self.UKrmlast = UKrmlast
+        self.rmlast = rmlast
+        self.filt_win = filt_win
         
         if doit:
             # get ntests:
@@ -63,7 +67,7 @@ class Covid_analysis_wiki():
 
     def population(self,country):
         pop = 1
-        if country == 'Italy':          pop =    60486199
+        if   country == 'Italy':          pop =    60486199
         elif country == 'United_States':  pop =   327200000
         elif country == 'Mainland_China': pop =  1386000000
         elif country == 'Spain':          pop =    46660000
@@ -72,6 +76,10 @@ class Covid_analysis_wiki():
         elif country == 'Netherlands':    pop =    17180000
         elif country == 'Germany':        pop =    82790000
         elif country == 'South_Korea':    pop =    51470000
+        elif country == 'Brazil':         pop =   209500000
+        elif country == 'Russia':         pop =   144500000
+        elif country == 'Sweden':         pop =    10230000
+        elif country == 'Israel':         pop =     9199700 
         else: print(f'covid_analysis_wiki.population(): no population for {country}, set to 1.')
         return pop
 
@@ -202,6 +210,16 @@ class Covid_analysis_wiki():
         death = np.array([int(i[1]) for i in data_matrix if i[1]!='' and not i[1].startswith('(')])
         recov = np.array([int(i[2]) for i in data_matrix if i[2]!='' and not i[2].startswith('(')])
         cases = np.array([int(i[3]) for i in data_matrix if i[3]!='' and not i[3].startswith('(')])
+        if country == 'United_Kingdom' and self.UKrmlast:
+            death_dates = death_dates[:-1]
+            death = death[:-1]
+        if self.rmlast:
+            death = death[:-1]
+            recov = recov[:-1]
+            cases = cases[:-1]
+            death_dates = death_dates[:-1]
+            recov_dates = recov_dates[:-1]
+            cases_dates = cases_dates[:-1]
         # store:
         self.d_data[country]['death_dates'] = death_dates
         self.d_data[country]['recov_dates'] = recov_dates
@@ -298,7 +316,7 @@ class Covid_analysis_wiki():
 
     def plot_data(self, fitpts=5, fitpts_ext=10, procapite=True):
         d = self.d_data
-        savw = 7 # savgol filter win
+        savw = self.filt_win # savgol filter win
         savord = 1 # savgol filter polyorder
         marker_size= 3
         fig1 = plt.figure('cumulative', clear=True, figsize=(5,8))
@@ -360,7 +378,7 @@ class Covid_analysis_wiki():
             fig4 = plt.figure('d.cases Vs d.deaths'+country, clear=True, figsize=(3,2))
             ax41 = fig4.add_subplot(111)
             m = np.min([len(np.diff(cases)), len(np.diff(death))])
-            alphas = np.linspace(0.01,1,m)**2
+            alphas = np.linspace(0.2,1,m)**2
             cols = ([(1,0,0,i) for i in alphas])
             #x = self.running_stats(np.diff(cases), npts=10)[0][-m:]
             #y = self.running_stats(np.diff(death), npts=10)[0][-m:]

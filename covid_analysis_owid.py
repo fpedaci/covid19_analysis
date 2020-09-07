@@ -12,32 +12,34 @@ from matplotlib.ticker import FuncFormatter
 class Covid_analysis_OWID():
     ''' data from ourwolrdindata '''
 
-    def __init__(self, countries=['ITA','FRA','USA'], filter_win=7, download=True):
+    def __init__(self, countries=['ITA','FRA','USA'], filter_win=7, filter_ord=1, download=True):
         ''' 
         Covid Analysis from www.ourwolrdindata.org 
         
         countries : list of country names, 3 letters (run get_country_names() to have the list) 
         filter_win : window datapoint to smooth [7]
+        filter_ord : polynome order for the fit [1]
         download : download the latest data
 
         ex:
             covid_analysis_owid.Covid_analysis_OWID(countries=['USA','ITA','FRA'], download=1, filter_win=7)
         '''
-        self.file_ourworldindata = 'https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-covid-data.json'
-        #'https://covid.ourworldindata.org/data/owid-covid-data.json'
+        self.OWID_address = 'https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-covid-data.json'
+        self.local_file = 'OWID_data.json'
         if download:
             self.download()
         self.read()
         self.init_fig()
         for country in countries:
-            self.plot_country(country, filter_win=filter_win)
+            self.plot_country(country, filter_win=filter_win, filter_ord=filter_ord)
 
 
     def download(self):
-        print('Covid_analysis_OWID: downloading...')
-        if os.path.exists(self.file_ourworldindata):
-            os.remove(self.file_ourworldindata)
-        wget.download(self.file_ourworldindata, 'OWID_data.json') 
+        if os.path.exists(self.local_file):
+            os.remove(self.local_file)
+            print('Covid_analysis_OWID: removed old local file.')
+        print('Covid_analysis_OWID: downloading new file...')
+        wget.download(self.OWID_address, self.local_file) 
 
 
     def read(self):
@@ -50,7 +52,8 @@ class Covid_analysis_OWID():
         if not hasattr(self, 'd'):
             raise RuntimeError('missing data from read()')
         for k in self.d:
-            print(f'{k} : ', self.d[k]['location'])
+            name = self.d[k]['location']
+            print(f'{k} :\t{name}')
 
 
     def init_fig(self):
@@ -70,44 +73,60 @@ class Covid_analysis_OWID():
         self.ax14.set_ylabel('Daily Cases / Tests')
         
     
-    def plot_country(self, country, filter_win=7):
+    def plot_country(self, country, filter_win=7, filter_ord=1):
         print(f'Covid_analysis_OWID: processing {country}')
         co = self.d[country]
         # timestamps:
         tstamps = np.array([dateutil.parser.parse(i['date']).timestamp() if 'date' in i else np.nan         for i in co['data']])
         # cases:
         new_cases = np.array([i['new_cases'] if 'new_cases' in i else np.nan                                for i in co['data']])
-        new_cases_sf = savgol_filter(new_cases, win=filter_win, polyorder=1)
+        new_cases_sf = savgol_filter(new_cases, win=filter_win, polyorder=filter_ord)
         new_cases_sm = np.array([i['new_cases_smoothed'] if 'new_cases_smoothed' in i else np.nan           for i in co['data']])
         new_cases_pm = np.array([i['new_cases_per_million'] if 'new_cases_per_million' in i else np.nan     for i in co['data']])
+        new_cases_sf = np.clip(new_cases_sf, 0, None)
         new_cases_sf = zeros2nan(new_cases_sf)
         # deaths:
         new_deaths = np.array([i['new_deaths'] if 'new_deaths' in i else np.nan                             for i in co['data']])
         new_deaths_sm = np.array([i['new_deaths_smoothed'] if 'new_deaths_smoothed' in i else np.nan        for i in co['data']])
         new_deaths_pm = np.array([i['new_deaths_per_million'] if 'new_deaths_per_million' in i else np.nan  for i in co['data']])
-        new_deaths_sf = savgol_filter(new_deaths, win=filter_win, polyorder=1)
+        new_deaths_sf = savgol_filter(new_deaths, win=filter_win, polyorder=filter_ord)
+        new_deaths_sf = np.clip(new_deaths_sf, 0, None)
         new_deaths_sf = zeros2nan(new_deaths_sf)
         # tests:
         new_tests = np.array([i['new_tests'] if 'new_tests' in i else np.nan                                for i in co['data']])
-        new_tests_sf = savgol_filter(fix_nan(new_tests), win=filter_win, polyorder=1)
+        new_tests_sf = savgol_filter(nan2neig(new_tests)[0], win=filter_win, polyorder=filter_ord)
+        new_tests_sf = np.clip(new_tests_sf, 0, None)
         new_tests_sf = zeros2nan(new_tests_sf)
-        # normalized cases:
+        tests_absent = np.all(np.isnan(new_tests))
+        if tests_absent: 
+            new_tests = np.array([i['new_tests_smoothed'] if 'new_tests_smoothed' in i else np.nan          for i in co['data']])
+            new_tests_sf = new_tests
+            tests_absent = np.all(np.isnan(new_tests))
+            print(f'Covid_analysis_OWID: no tests found for {country}. new_tests_smoothed: {not tests_absent}')
+
+        # cases normalized by tests:
         new_cases_tests = new_cases/new_tests
-        new_cases_tests_sf = savgol_filter(fix_nan(new_cases_tests), win=filter_win, polyorder=1)
+        new_cases_tests_neig, new_cases_tests_neig_idx = nan2neig(new_cases_tests)
+        new_cases_tests_sf = savgol_filter(new_cases_tests_neig, win=filter_win, polyorder=filter_ord)
+        new_cases_tests_sf = np.clip(new_cases_tests_sf, 0, None)
         new_cases_tests_sf = zeros2nan(new_cases_tests_sf)
+        new_cases_tests_sf = np.delete(new_cases_tests_sf, new_cases_tests_neig_idx)
+        new_cases_tests_tstamps = np.delete(tstamps, new_cases_tests_neig_idx)
+        new_cases_tests = zeros2nan(new_cases_tests)
         ### plots:
-        p1, = self.ax11.semilogy(tstamps, new_cases, 'o', ms=3, alpha=0.1)
-        self.ax11.semilogy(tstamps, new_cases_sf, '-', alpha=0.9, color=p1.get_color(), label=country)
+        p1, = self.ax11.semilogy(tstamps, new_cases, 'o', ms=3, alpha=0.2)
+        self.ax11.semilogy(tstamps, new_cases_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
         self.ax11.legend(fontsize=8, labelspacing=0)
-        self.ax13.semilogy(tstamps, new_deaths, 'o', ms=3, alpha=0.1, color=p1.get_color())
-        self.ax13.semilogy(tstamps, new_deaths_sf, '-', alpha=0.9, color=p1.get_color(), label=country)
+        self.ax13.semilogy(tstamps, new_deaths, 'o', ms=3, alpha=0.2, color=p1.get_color())
+        self.ax13.semilogy(tstamps, new_deaths_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
         self.ax13.legend(fontsize=8, labelspacing=0)
-        self.ax12.semilogy(tstamps, new_tests, 'o', ms=3, alpha=0.1, color=p1.get_color())
-        self.ax12.semilogy(tstamps, new_tests_sf, '-', alpha=0.9, color=p1.get_color(), label=country)
+        self.ax12.semilogy(tstamps, new_tests, 'o', ms=3, alpha=0.2, color=p1.get_color())
+        self.ax12.semilogy(tstamps, new_tests_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
         self.ax12.legend(fontsize=8, labelspacing=0)
-        self.ax14.semilogy(tstamps, new_cases_tests, 'o', ms=3, alpha=0.1, color=p1.get_color())
-        self.ax14.semilogy(tstamps, new_cases_tests_sf, '-', alpha=0.9, color=p1.get_color(), label=country)
-        self.ax14.legend(fontsize=8, labelspacing=0)
+        if not tests_absent:
+            self.ax14.semilogy(tstamps, new_cases_tests, 'o', ms=3, alpha=0.2, color=p1.get_color())
+            self.ax14.semilogy(new_cases_tests_tstamps, new_cases_tests_sf, '-', alpha=0.9, lw=2, color=p1.get_color(), label=country)
+            self.ax14.legend(fontsize=8, labelspacing=0)
         # make xticklabels as date strings:
         formatter = FuncFormatter(lambda x_val, tick_pos: str(datetime.datetime.fromtimestamp(x_val).date()).lstrip('2020-'))
         self.ax11.xaxis.set_major_formatter(formatter)
@@ -116,15 +135,17 @@ class Covid_analysis_OWID():
 
 
 
-def fix_nan(x, start=0):
-    ''' replaces np.nan with neighbor value, starting at x[0]=start '''
+def nan2neig(x, start=0):
+    ''' replaces np.nan with neighbor value, starting at x[0]=start, giving indexes where values changed '''
     xx = np.copy(x)
     if np.isnan(xx[0]):
         xx[0] = start
+    idx = []
     for i in range(1, len(xx)):
         if np.isnan(xx[i]):
             xx[i] = xx[i-1]
-    return xx
+            idx = np.append(idx, i)
+    return xx, idx
 
 
 def zeros2nan(x):
@@ -142,7 +163,7 @@ def savgol_filter(x, win=7, polyorder=3, plots=False):
     if np.mod(win,2) == 0:
         win = win+1
         print('savgol_filter(): Warning, win must be odd, forced win = '+str(win))
-    y = sig.savgol_filter(x, window_length=win, polyorder=polyorder)
+    y = sig.savgol_filter(x, window_length=win, polyorder=polyorder, mode='interp')
     if plots:
         plt.figure('savgol_filter()')
         plt.clf()

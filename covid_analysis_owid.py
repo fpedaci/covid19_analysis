@@ -77,29 +77,37 @@ class Covid_analysis_OWID():
         print(f'Covid_analysis_OWID: processing {country}')
         co = self.d[country]
         # timestamps:
-        tstamps = np.array([dateutil.parser.parse(i['date']).timestamp() if 'date' in i else np.nan         for i in co['data']])
+        tstamps = np.array([dateutil.parser.parse(i['date']).timestamp() if 'date' in i else np.nan             for i in co['data']])
         # cases:
-        new_cases = np.array([i['new_cases'] if 'new_cases' in i else np.nan                                for i in co['data']])
+        new_cases = np.array([i['new_cases'] if 'new_cases' in i else np.nan                                    for i in co['data']])
         new_cases_sf = savgol_filter(new_cases, win=filter_win, polyorder=filter_ord)
-        new_cases_sm = np.array([i['new_cases_smoothed'] if 'new_cases_smoothed' in i else np.nan           for i in co['data']])
-        new_cases_pm = np.array([i['new_cases_per_million'] if 'new_cases_per_million' in i else np.nan     for i in co['data']])
         new_cases_sf = np.clip(new_cases_sf, 0, None)
         new_cases_sf = zeros2nan(new_cases_sf)
+        new_cases_sm = np.array([i['new_cases_smoothed'] if 'new_cases_smoothed' in i else np.nan               for i in co['data']])
+        new_cases_pc = np.array([i['new_cases_per_million']/1e6 if 'new_cases_per_million' in i else np.nan     for i in co['data']])
+        new_cases_pc_sf = savgol_filter(new_cases_pc, win=filter_win, polyorder=filter_ord)
+        new_cases_pc_sf = np.clip(new_cases_pc_sf, 0, None)
+        new_cases_pc_sf = zeros2nan(new_cases_pc_sf)
         # deaths:
-        new_deaths = np.array([i['new_deaths'] if 'new_deaths' in i else np.nan                             for i in co['data']])
-        new_deaths_sm = np.array([i['new_deaths_smoothed'] if 'new_deaths_smoothed' in i else np.nan        for i in co['data']])
-        new_deaths_pm = np.array([i['new_deaths_per_million'] if 'new_deaths_per_million' in i else np.nan  for i in co['data']])
+        new_deaths = np.array([i['new_deaths'] if 'new_deaths' in i else np.nan                                 for i in co['data']])
+        print(new_deaths)
         new_deaths_sf = savgol_filter(new_deaths, win=filter_win, polyorder=filter_ord)
         new_deaths_sf = np.clip(new_deaths_sf, 0, None)
         new_deaths_sf = zeros2nan(new_deaths_sf)
+        new_deaths_sm = np.array([i['new_deaths_smoothed'] if 'new_deaths_smoothed' in i else np.nan            for i in co['data']])
+        new_deaths_pc = np.array([i['new_deaths_per_million']/1e6 if 'new_deaths_per_million' in i else np.nan  for i in co['data']])
+        new_deaths_pc_sf = savgol_filter(new_deaths_pc, win=filter_win, polyorder=filter_ord)
+        new_deaths_pc_sf = np.clip(new_deaths_pc_sf, 0, None)
+        new_deaths_pc_sf = zeros2nan(new_deaths_pc_sf)
         # tests:
-        new_tests = np.array([i['new_tests'] if 'new_tests' in i else np.nan                                for i in co['data']])
+        new_tests_pc = np.array([i['new_tests_per_thousand']/1e3 if 'new_tests_per_thousand' in i else np.nan   for i in co['data']])
+        new_tests = np.array([i['new_tests'] if 'new_tests' in i else np.nan                                    for i in co['data']])
         new_tests_sf = savgol_filter(nan2neig(new_tests)[0], win=filter_win, polyorder=filter_ord)
         new_tests_sf = np.clip(new_tests_sf, 0, None)
         new_tests_sf = zeros2nan(new_tests_sf)
         tests_absent = np.all(np.isnan(new_tests))
         if tests_absent: 
-            new_tests = np.array([i['new_tests_smoothed'] if 'new_tests_smoothed' in i else np.nan          for i in co['data']])
+            new_tests = np.array([i['new_tests_smoothed'] if 'new_tests_smoothed' in i else np.nan               for i in co['data']])
             new_tests_sf = new_tests
             tests_absent = np.all(np.isnan(new_tests))
             print(f'Covid_analysis_OWID: no tests found for {country}. new_tests_smoothed: {not tests_absent}')
@@ -107,18 +115,22 @@ class Covid_analysis_OWID():
         # cases normalized by tests:
         new_cases_tests = new_cases/new_tests
         new_cases_tests_neig, new_cases_tests_neig_idx = nan2neig(new_cases_tests)
-        new_cases_tests_sf = savgol_filter(new_cases_tests_neig, win=filter_win, polyorder=filter_ord)
+        #new_cases_tests_sf = savgol_filter(new_cases_tests_neig, win=filter_win, polyorder=filter_ord)
+        new_cases_tests_sf = new_cases_sf/new_tests_sf
         new_cases_tests_sf = np.clip(new_cases_tests_sf, 0, None)
         new_cases_tests_sf = zeros2nan(new_cases_tests_sf)
         new_cases_tests_sf = np.delete(new_cases_tests_sf, new_cases_tests_neig_idx)
         new_cases_tests_tstamps = np.delete(tstamps, new_cases_tests_neig_idx)
         new_cases_tests = zeros2nan(new_cases_tests)
+        ### 
         ### plots:
         p1, = self.ax11.semilogy(tstamps, new_cases, 'o', ms=3, alpha=0.2)
         self.ax11.semilogy(tstamps, new_cases_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
+        #self.ax11.semilogy(tstamps, new_cases_sm, '--', lw=2, alpha=0.9, color=p1.get_color(), label=country)
         self.ax11.legend(fontsize=8, labelspacing=0)
         self.ax13.semilogy(tstamps, new_deaths, 'o', ms=3, alpha=0.2, color=p1.get_color())
         self.ax13.semilogy(tstamps, new_deaths_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
+        #self.ax13.semilogy(tstamps, new_deaths_sm, '--', lw=2, alpha=0.9, color=p1.get_color(), label=country)
         self.ax13.legend(fontsize=8, labelspacing=0)
         self.ax12.semilogy(tstamps, new_tests, 'o', ms=3, alpha=0.2, color=p1.get_color())
         self.ax12.semilogy(tstamps, new_tests_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)

@@ -12,7 +12,7 @@ from matplotlib.ticker import FuncFormatter
 class Covid_analysis_OWID():
     ''' data from ourwolrdindata '''
 
-    def __init__(self, countries=['ITA','FRA','USA'], filter_win=7, filter_ord=1, download=True):
+    def __init__(self, countries=['ITA','FRA','USA'], filter_win=7, filter_ord=1, procapite=False, download=True):
         ''' 
         Covid Analysis from www.ourwolrdindata.org 
         
@@ -26,6 +26,7 @@ class Covid_analysis_OWID():
         '''
         self.OWID_address = 'https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-covid-data.json'
         self.local_file = 'OWID_data.json'
+        self.procapite = procapite
         if download:
             self.download()
         self.read()
@@ -67,9 +68,14 @@ class Covid_analysis_OWID():
         self.ax12.set_xlabel('Day')
         self.ax13.set_xlabel('Day')
         self.ax14.set_xlabel('Day')
-        self.ax11.set_ylabel('Daily Cases')
-        self.ax12.set_ylabel('Daily Tests')
-        self.ax13.set_ylabel('Daily Deaths')
+        if self.procapite:
+            self.ax11.set_ylabel('Daily Cases pro capite')
+            self.ax12.set_ylabel('Daily Tests pro capite')
+            self.ax13.set_ylabel('Daily Deaths pro capite')
+        else:
+            self.ax11.set_ylabel('Daily Cases')
+            self.ax12.set_ylabel('Daily Tests')
+            self.ax13.set_ylabel('Daily Deaths')
         self.ax14.set_ylabel('Daily Cases / Tests')
         
     
@@ -90,7 +96,6 @@ class Covid_analysis_OWID():
         new_cases_pc_sf = zeros2nan(new_cases_pc_sf)
         # deaths:
         new_deaths = np.array([i['new_deaths'] if 'new_deaths' in i else np.nan                                 for i in co['data']])
-        print(new_deaths)
         new_deaths_sf = savgol_filter(new_deaths, win=filter_win, polyorder=filter_ord)
         new_deaths_sf = np.clip(new_deaths_sf, 0, None)
         new_deaths_sf = zeros2nan(new_deaths_sf)
@@ -101,6 +106,9 @@ class Covid_analysis_OWID():
         new_deaths_pc_sf = zeros2nan(new_deaths_pc_sf)
         # tests:
         new_tests_pc = np.array([i['new_tests_per_thousand']/1e3 if 'new_tests_per_thousand' in i else np.nan   for i in co['data']])
+        new_tests_pc_sf = savgol_filter(nan2neig(new_tests_pc)[0], win=filter_win, polyorder=filter_ord)
+        new_tests_pc_sf = np.clip(new_tests_pc_sf, 0, None)
+        new_tests_pc_sf = zeros2nan(new_tests_pc_sf)
         new_tests = np.array([i['new_tests'] if 'new_tests' in i else np.nan                                    for i in co['data']])
         new_tests_sf = savgol_filter(nan2neig(new_tests)[0], win=filter_win, polyorder=filter_ord)
         new_tests_sf = np.clip(new_tests_sf, 0, None)
@@ -122,19 +130,25 @@ class Covid_analysis_OWID():
         new_cases_tests_sf = np.delete(new_cases_tests_sf, new_cases_tests_neig_idx)
         new_cases_tests_tstamps = np.delete(tstamps, new_cases_tests_neig_idx)
         new_cases_tests = zeros2nan(new_cases_tests)
-        ### 
-        ### plots:
-        p1, = self.ax11.semilogy(tstamps, new_cases, 'o', ms=3, alpha=0.2)
-        self.ax11.semilogy(tstamps, new_cases_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
-        #self.ax11.semilogy(tstamps, new_cases_sm, '--', lw=2, alpha=0.9, color=p1.get_color(), label=country)
+
+        ### Plots:
+        if self.procapite:
+            p1, = self.ax11.semilogy(tstamps, new_cases_pc, 'o', ms=3, alpha=0.2)
+            self.ax11.semilogy(tstamps, new_cases_pc_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
+            self.ax13.semilogy(tstamps, new_deaths_pc, 'o', ms=3, alpha=0.2, color=p1.get_color())
+            self.ax13.semilogy(tstamps, new_deaths_pc_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
+            self.ax12.semilogy(tstamps, new_tests_pc, 'o', ms=3, alpha=0.2, color=p1.get_color())
+            self.ax12.semilogy(tstamps, new_tests_pc_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
+        else:
+            p1, = self.ax11.semilogy(tstamps, new_cases, 'o', ms=3, alpha=0.2)
+            self.ax11.semilogy(tstamps, new_cases_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
+            self.ax13.semilogy(tstamps, new_deaths, 'o', ms=3, alpha=0.2, color=p1.get_color())
+            self.ax13.semilogy(tstamps, new_deaths_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
+            self.ax12.semilogy(tstamps, new_tests, 'o', ms=3, alpha=0.2, color=p1.get_color())
+            self.ax12.semilogy(tstamps, new_tests_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
         self.ax11.legend(fontsize=8, labelspacing=0)
-        self.ax13.semilogy(tstamps, new_deaths, 'o', ms=3, alpha=0.2, color=p1.get_color())
-        self.ax13.semilogy(tstamps, new_deaths_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
-        #self.ax13.semilogy(tstamps, new_deaths_sm, '--', lw=2, alpha=0.9, color=p1.get_color(), label=country)
-        self.ax13.legend(fontsize=8, labelspacing=0)
-        self.ax12.semilogy(tstamps, new_tests, 'o', ms=3, alpha=0.2, color=p1.get_color())
-        self.ax12.semilogy(tstamps, new_tests_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
         self.ax12.legend(fontsize=8, labelspacing=0)
+        self.ax13.legend(fontsize=8, labelspacing=0)
         if not tests_absent:
             self.ax14.semilogy(tstamps, new_cases_tests, 'o', ms=3, alpha=0.2, color=p1.get_color())
             self.ax14.semilogy(new_cases_tests_tstamps, new_cases_tests_sf, '-', alpha=0.9, lw=2, color=p1.get_color(), label=country)
@@ -156,7 +170,7 @@ def nan2neig(x, start=0):
     for i in range(1, len(xx)):
         if np.isnan(xx[i]):
             xx[i] = xx[i-1]
-            idx = np.append(idx, i)
+            idx.append(i)
     return xx, idx
 
 
@@ -171,10 +185,10 @@ def savgol_filter(x, win=7, polyorder=3, plots=False):
     import scipy.signal as sig
     if polyorder >= win:
         polyorder = win-1
-        print('savgol_filter(): Warning, bad polyorder fixed to win-1')
+        print(f'savgol_filter(): Warning, bad polyorder fixed to win-1 = {polyorder}')
     if np.mod(win,2) == 0:
         win = win+1
-        print('savgol_filter(): Warning, win must be odd, forced win = '+str(win))
+        print(f'savgol_filter(): Warning, win must be odd, forced win = {win}')
     y = sig.savgol_filter(x, window_length=win, polyorder=polyorder, mode='interp')
     if plots:
         plt.figure('savgol_filter()')

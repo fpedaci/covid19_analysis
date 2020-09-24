@@ -116,7 +116,9 @@ class Covid_analysis_OWID():
         tests_absent = np.all(np.isnan(new_tests))
         if tests_absent: 
             new_tests = np.array([i['new_tests_smoothed'] if 'new_tests_smoothed' in i else np.nan               for i in co['data']])
+            new_tests_pc = np.array([i['new_tests_smoothed_per_thousand']/1e3 if 'new_tests_smoothed_per_thousand' in i else np.nan for i in co['data']])
             new_tests_sf = new_tests
+            new_tests_pc_sf = new_tests_pc
             tests_absent = np.all(np.isnan(new_tests))
             print(f'Covid_analysis_OWID: no tests found for {country}. new_tests_smoothed: {not tests_absent}')
 

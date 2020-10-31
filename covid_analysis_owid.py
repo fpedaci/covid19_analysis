@@ -77,8 +77,22 @@ class Covid_analysis_OWID():
             self.ax12.set_ylabel('Daily Tests')
             self.ax13.set_ylabel('Daily Deaths')
         self.ax14.set_ylabel('Daily Cases / Tests')
-        
-    
+        self.fig2 = plt.figure('Total', clear=True)
+        self.ax21 = self.fig2.add_subplot(211, sharex=self.ax11)
+        self.ax22 = self.fig2.add_subplot(212, sharex=self.ax11)
+        self.ax21.set_xlabel('Day')
+        self.ax22.set_xlabel('Day')
+        self.ax21.set_ylabel('Total Cases')
+        self.ax22.set_ylabel('Total Deaths')
+
+
+    def linfit_log(self, x, y, a, b):
+        pfit = np.polyfit(x[a:b], np.log10(y[a:b]), 1)
+        xfit = np.linspace(x[a], x[-1] + np.diff(x)[-1]*50, 50)
+        yfit = 10**np.poly1d(pfit)(xfit)
+        return xfit, yfit
+
+
     def plot_country(self, country, filter_win=7, filter_ord=1):
         print(f'Covid_analysis_OWID: processing {country}')
         co = self.d[country]
@@ -94,6 +108,10 @@ class Covid_analysis_OWID():
         new_cases_pc_sf = savgol_filter(new_cases_pc, win=filter_win, polyorder=filter_ord)
         new_cases_pc_sf = np.clip(new_cases_pc_sf, 0, None)
         new_cases_pc_sf = zeros2nan(new_cases_pc_sf)
+        total_cases = np.array([i['total_cases'] if 'total_cases' in i else np.nan                              for i in co['data']])
+        total_cases_xfit, total_cases_yfit = self.linfit_log(tstamps, total_cases, -7, -1)
+        total_cases_xfit_1, total_cases_yfit_1 = self.linfit_log(tstamps, total_cases, -14, -7)
+        total_cases_xfit_2, total_cases_yfit_2 = self.linfit_log(tstamps, total_cases, -21, -14)
         # deaths:
         new_deaths = np.array([i['new_deaths'] if 'new_deaths' in i else np.nan                                 for i in co['data']])
         new_deaths_sf = savgol_filter(new_deaths, win=filter_win, polyorder=filter_ord)
@@ -104,6 +122,7 @@ class Covid_analysis_OWID():
         new_deaths_pc_sf = savgol_filter(new_deaths_pc, win=filter_win, polyorder=filter_ord)
         new_deaths_pc_sf = np.clip(new_deaths_pc_sf, 0, None)
         new_deaths_pc_sf = zeros2nan(new_deaths_pc_sf)
+        total_deaths = np.array([i['total_deaths'] if 'total_deaths' in i else np.nan                           for i in co['data']])
         # tests:
         new_tests_pc = np.array([i['new_tests_per_thousand']/1e3 if 'new_tests_per_thousand' in i else np.nan   for i in co['data']])
         new_tests_pc_sf = savgol_filter(nan2neig(new_tests_pc)[0], win=filter_win, polyorder=filter_ord)
@@ -121,7 +140,6 @@ class Covid_analysis_OWID():
             new_tests_pc_sf = new_tests_pc
             tests_absent = np.all(np.isnan(new_tests))
             print(f'Covid_analysis_OWID: no tests found for {country}. new_tests_smoothed: {not tests_absent}')
-
         # cases normalized by tests:
         new_cases_tests = new_cases/new_tests
         new_cases_tests_neig, new_cases_tests_neig_idx = nan2neig(new_cases_tests)
@@ -155,10 +173,18 @@ class Covid_analysis_OWID():
             self.ax14.semilogy(tstamps, new_cases_tests, 'o', ms=3, alpha=0.2, color=p1.get_color())
             self.ax14.semilogy(new_cases_tests_tstamps, new_cases_tests_sf, '-', alpha=0.9, lw=2, color=p1.get_color(), label=country)
             self.ax14.legend(fontsize=8, labelspacing=0)
+        # total cases plots: 
+        self.ax21.semilogy(tstamps, total_cases , '.', ms=6, alpha=0.7, color=p1.get_color(), label=country)
+        self.ax22.plot(tstamps, total_deaths, '.', ms=6, alpha=0.4, color=p1.get_color(), label=country)
+        self.ax21.plot(total_cases_xfit, total_cases_yfit, '-', lw=1, alpha=1, color=p1.get_color())
+        self.ax21.plot(total_cases_xfit_1, total_cases_yfit_1, '-', lw=1, alpha=0.4, color=p1.get_color())
+        self.ax21.plot(total_cases_xfit_2, total_cases_yfit_2, '-', lw=1, alpha=0.2, color=p1.get_color())
+        self.ax21.legend(fontsize=8, labelspacing=0)
+        self.ax22.legend(fontsize=8, labelspacing=0)
+        
         # make xticklabels as date strings:
         formatter = FuncFormatter(lambda x_val, tick_pos: str(datetime.datetime.fromtimestamp(x_val).date()).lstrip('2020-'))
         self.ax11.xaxis.set_major_formatter(formatter)
-        #
         self.fig1.tight_layout()
 
 
@@ -176,10 +202,12 @@ def nan2neig(x, start=0):
     return xx, idx
 
 
+
 def zeros2nan(x):
     xx = np.copy(x)
     xx[np.nonzero(xx==0)[0]] = np.nan
     return xx
+
 
 
 def savgol_filter(x, win=7, polyorder=3, plots=False):

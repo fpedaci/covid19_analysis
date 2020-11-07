@@ -77,6 +77,7 @@ class Covid_analysis_OWID():
             self.ax12.set_ylabel('Daily Tests')
             self.ax13.set_ylabel('Daily Deaths')
         self.ax14.set_ylabel('Daily Cases / Tests')
+
         self.fig2 = plt.figure('Total', clear=True)
         self.ax21 = self.fig2.add_subplot(211, sharex=self.ax11)
         self.ax22 = self.fig2.add_subplot(212, sharex=self.ax11)
@@ -84,6 +85,10 @@ class Covid_analysis_OWID():
         self.ax22.set_xlabel('Day')
         self.ax21.set_ylabel('Total Cases')
         self.ax22.set_ylabel('Total Deaths')
+        
+        self.fig3 = plt.figure('Tests', clear=True)
+        self.ax31 = self.fig3.add_subplot(211, sharex=self.ax11)
+        self.ax32 = self.fig3.add_subplot(212, sharex=self.ax11)
 
 
     def linfit_log(self, x, y, a, b):
@@ -181,7 +186,15 @@ class Covid_analysis_OWID():
         self.ax21.plot(total_cases_xfit_2, total_cases_yfit_2, '-', lw=1, alpha=0.2, color=p1.get_color())
         self.ax21.legend(fontsize=8, labelspacing=0)
         self.ax22.legend(fontsize=8, labelspacing=0)
-        
+        # test plots:
+        self.ax31.semilogy(tstamps, 100*new_deaths_sf/new_cases_sf, '-', color=p1.get_color(), label=country)
+        self.ax31.legend(fontsize=8, labelspacing=0)
+        self.ax31.set_xlabel('Day')
+        self.ax31.set_ylabel('Daily Deaths/Cases %')
+        self.ax32.semilogy(tstamps, 100*total_deaths/total_cases, '-', color=p1.get_color(), label=country)
+        self.ax32.set_xlabel('Day')
+        self.ax32.set_ylabel('Tot. Deaths/Cases %')
+
         # make xticklabels as date strings:
         formatter = FuncFormatter(lambda x_val, tick_pos: str(datetime.datetime.fromtimestamp(x_val).date()).lstrip('2020-'))
         self.ax11.xaxis.set_major_formatter(formatter)

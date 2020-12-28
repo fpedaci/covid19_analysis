@@ -12,14 +12,15 @@ from matplotlib.ticker import FuncFormatter
 class Covid_analysis_OWID():
     ''' data from ourwolrdindata '''
 
-    def __init__(self, countries=['ITA','FRA','USA'], filter_win=7, filter_ord=1, procapite=False, download=True):
+    def __init__(self, countries=['ITA','FRA','USA'], filter_win=7, filter_ord=1, procapite=False, rm_endpts=0, download=True):
         ''' 
-        Covid Analysis from www.ourwolrdindata.org 
+        Covid Analysis of data from www.ourwolrdindata.org 
         
-        countries : list of country names, 3 letters (run get_country_names() to have the list) 
+        countries  : list of country names, 3 letters (run get_country_names() to have the list) 
         filter_win : window datapoint to smooth [7]
         filter_ord : polynome order for the fit [1]
-        download : download the latest data
+        rm_endpts  : n. of points to remove from the end of the cases, before filtering
+        download   : download the latest data
 
         ex:
             covid_analysis_owid.Covid_analysis_OWID(countries=['USA','ITA','FRA'], download=1, filter_win=7)
@@ -27,6 +28,7 @@ class Covid_analysis_OWID():
         self.OWID_address = 'https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-covid-data.json'
         self.local_file = 'OWID_data.json'
         self.procapite = procapite
+        self.rm_endpts = -rm_endpts if rm_endpts != 0 else None
         if download:
             self.download()
         self.read()
@@ -77,7 +79,6 @@ class Covid_analysis_OWID():
             self.ax12.set_ylabel('Daily Tests')
             self.ax13.set_ylabel('Daily Deaths')
         self.ax14.set_ylabel('Daily Cases / Tests')
-
         self.fig2 = plt.figure('Total', clear=True)
         self.ax21 = self.fig2.add_subplot(211, sharex=self.ax11)
         self.ax22 = self.fig2.add_subplot(212, sharex=self.ax11)
@@ -85,10 +86,15 @@ class Covid_analysis_OWID():
         self.ax22.set_xlabel('Day')
         self.ax21.set_ylabel('Total Cases')
         self.ax22.set_ylabel('Total Deaths')
-        
-        self.fig3 = plt.figure('Tests', clear=True)
+        self.fig3 = plt.figure('3.Tests', clear=True)
         self.ax31 = self.fig3.add_subplot(211, sharex=self.ax11)
         self.ax32 = self.fig3.add_subplot(212, sharex=self.ax11)
+        self.fig4 = plt.figure('4.cases Vs deaths', clear=True)
+        self.ax41 = self.fig4.add_subplot(111)
+        self.fig5 = plt.figure('5.deaths vs cases/tests', clear=True)
+        self.ax51 = self.fig5.add_subplot(221, sharex=self.ax11)
+        self.ax52 = self.fig5.add_subplot(223, sharex=self.ax11)
+        self.ax53 = self.fig5.add_subplot(122)
 
 
     def linfit_log(self, x, y, a, b):
@@ -105,12 +111,13 @@ class Covid_analysis_OWID():
         tstamps = np.array([dateutil.parser.parse(i['date']).timestamp() if 'date' in i else np.nan             for i in co['data']])
         # cases:
         new_cases = np.array([i['new_cases'] if 'new_cases' in i else np.nan                                    for i in co['data']])
-        new_cases_sf = savgol_filter(new_cases, win=filter_win, polyorder=filter_ord)
+        new_cases_sf = savgol_filter(nan2neig(new_cases[:self.rm_endpts])[0], win=filter_win, polyorder=filter_ord)
+        #new_cases_sf = savgol_filter(nan2neig(new_cases)[0], win=filter_win, polyorder=filter_ord)
         new_cases_sf = np.clip(new_cases_sf, 0, None)
         new_cases_sf = zeros2nan(new_cases_sf)
         new_cases_sm = np.array([i['new_cases_smoothed'] if 'new_cases_smoothed' in i else np.nan               for i in co['data']])
         new_cases_pc = np.array([i['new_cases_per_million']/1e6 if 'new_cases_per_million' in i else np.nan     for i in co['data']])
-        new_cases_pc_sf = savgol_filter(new_cases_pc, win=filter_win, polyorder=filter_ord)
+        new_cases_pc_sf = savgol_filter(nan2neig(new_cases_pc)[0], win=filter_win, polyorder=filter_ord)
         new_cases_pc_sf = np.clip(new_cases_pc_sf, 0, None)
         new_cases_pc_sf = zeros2nan(new_cases_pc_sf)
         total_cases = np.array([i['total_cases'] if 'total_cases' in i else np.nan                              for i in co['data']])
@@ -119,12 +126,12 @@ class Covid_analysis_OWID():
         total_cases_xfit_2, total_cases_yfit_2 = self.linfit_log(tstamps, total_cases, -21, -14)
         # deaths:
         new_deaths = np.array([i['new_deaths'] if 'new_deaths' in i else np.nan                                 for i in co['data']])
-        new_deaths_sf = savgol_filter(new_deaths, win=filter_win, polyorder=filter_ord)
+        new_deaths_sf = savgol_filter(nan2neig(new_deaths)[0], win=filter_win, polyorder=filter_ord)
         new_deaths_sf = np.clip(new_deaths_sf, 0, None)
         new_deaths_sf = zeros2nan(new_deaths_sf)
         new_deaths_sm = np.array([i['new_deaths_smoothed'] if 'new_deaths_smoothed' in i else np.nan            for i in co['data']])
         new_deaths_pc = np.array([i['new_deaths_per_million']/1e6 if 'new_deaths_per_million' in i else np.nan  for i in co['data']])
-        new_deaths_pc_sf = savgol_filter(new_deaths_pc, win=filter_win, polyorder=filter_ord)
+        new_deaths_pc_sf = savgol_filter(nan2neig(new_deaths_pc)[0], win=filter_win, polyorder=filter_ord)
         new_deaths_pc_sf = np.clip(new_deaths_pc_sf, 0, None)
         new_deaths_pc_sf = zeros2nan(new_deaths_pc_sf)
         total_deaths = np.array([i['total_deaths'] if 'total_deaths' in i else np.nan                           for i in co['data']])
@@ -149,32 +156,35 @@ class Covid_analysis_OWID():
         new_cases_tests = new_cases/new_tests
         new_cases_tests_neig, new_cases_tests_neig_idx = nan2neig(new_cases_tests)
         #new_cases_tests_sf = savgol_filter(new_cases_tests_neig, win=filter_win, polyorder=filter_ord)
-        new_cases_tests_sf = new_cases_sf/new_tests_sf
+        new_cases_tests_sf = new_cases_sf/new_tests_sf[:self.rm_endpts]
         new_cases_tests_sf = np.clip(new_cases_tests_sf, 0, None)
         new_cases_tests_sf = zeros2nan(new_cases_tests_sf)
-        new_cases_tests_sf = np.delete(new_cases_tests_sf, new_cases_tests_neig_idx)
+        new_cases_tests_sf = np.delete(new_cases_tests_sf, new_cases_tests_neig_idx[:self.rm_endpts])
         new_cases_tests_tstamps = np.delete(tstamps, new_cases_tests_neig_idx)
         new_cases_tests = zeros2nan(new_cases_tests)
 
         ### Plots:
         if self.procapite:
-            p1, = self.ax11.semilogy(tstamps, new_cases_pc, 'o', ms=3, alpha=0.2)
-            self.ax11.semilogy(tstamps, new_cases_pc_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
-            self.ax13.semilogy(tstamps, new_deaths_pc, 'o', ms=3, alpha=0.2, color=p1.get_color())
-            self.ax13.semilogy(tstamps, new_deaths_pc_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
-            self.ax12.semilogy(tstamps, new_tests_pc, 'o', ms=3, alpha=0.2, color=p1.get_color())
-            self.ax12.semilogy(tstamps, new_tests_pc_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
+            # new cases, deaths, tests:
+            p1, = self.ax11.plot(tstamps, new_cases_pc, 'o', ms=3, alpha=0.2)
+            self.ax11.plot(tstamps, new_cases_pc_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
+            self.ax13.plot(tstamps, new_deaths_pc, 'o', ms=3, alpha=0.2, color=p1.get_color())
+            self.ax13.plot(tstamps, new_deaths_pc_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
+            self.ax12.plot(tstamps, new_tests_pc, 'o', ms=3, alpha=0.2, color=p1.get_color())
+            self.ax12.plot(tstamps, new_tests_pc_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
         else:
-            p1, = self.ax11.semilogy(tstamps, new_cases, 'o', ms=3, alpha=0.2)
-            self.ax11.semilogy(tstamps, new_cases_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
-            self.ax13.semilogy(tstamps, new_deaths, 'o', ms=3, alpha=0.2, color=p1.get_color())
-            self.ax13.semilogy(tstamps, new_deaths_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
-            self.ax12.semilogy(tstamps, new_tests, 'o', ms=3, alpha=0.2, color=p1.get_color())
-            self.ax12.semilogy(tstamps, new_tests_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
+            # new cases, deaths, tests:
+            p1, = self.ax11.plot(tstamps, new_cases, 'o', ms=3, alpha=0.2)
+            self.ax11.plot(tstamps[:self.rm_endpts], new_cases_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
+            self.ax13.plot(tstamps, new_deaths, 'o', ms=3, alpha=0.2, color=p1.get_color())
+            self.ax13.plot(tstamps, new_deaths_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
+            self.ax12.plot(tstamps, new_tests, 'o', ms=3, alpha=0.2, color=p1.get_color())
+            self.ax12.plot(tstamps, new_tests_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
         self.ax11.legend(fontsize=8, labelspacing=0)
         self.ax12.legend(fontsize=8, labelspacing=0)
         self.ax13.legend(fontsize=8, labelspacing=0)
         if not tests_absent:
+            # new cases/tests:
             self.ax14.semilogy(tstamps, new_cases_tests, 'o', ms=3, alpha=0.2, color=p1.get_color())
             self.ax14.semilogy(new_cases_tests_tstamps, new_cases_tests_sf, '-', alpha=0.9, lw=2, color=p1.get_color(), label=country)
             self.ax14.legend(fontsize=8, labelspacing=0)
@@ -187,13 +197,35 @@ class Covid_analysis_OWID():
         self.ax21.legend(fontsize=8, labelspacing=0)
         self.ax22.legend(fontsize=8, labelspacing=0)
         # test plots:
-        self.ax31.semilogy(tstamps, 100*new_deaths_sf/new_cases_sf, '-', color=p1.get_color(), label=country)
+        self.ax31.semilogy(tstamps[:self.rm_endpts], 100*new_deaths_sf[:self.rm_endpts]/new_cases_sf, '-', color=p1.get_color(), label=country)
         self.ax31.legend(fontsize=8, labelspacing=0)
         self.ax31.set_xlabel('Day')
         self.ax31.set_ylabel('Daily Deaths/Cases %')
         self.ax32.semilogy(tstamps, 100*total_deaths/total_cases, '-', color=p1.get_color(), label=country)
         self.ax32.set_xlabel('Day')
         self.ax32.set_ylabel('Tot. Deaths/Cases %')
+        # deaths Vs cases phase space:
+        self.ax41.plot(new_cases_sf, new_deaths_sf[:self.rm_endpts], '-', lw=3, alpha=0.8, label=country)
+        self.ax41.annotate("", xy=(new_cases_sf[-1], new_deaths_sf[-1]), xytext=(new_cases_sf[-2], new_deaths_sf[-2]), arrowprops=dict(headwidth=10, color=p1.get_color()))
+        self.ax41.legend(fontsize=9, labelspacing=0)
+        self.ax41.set_ylabel('New deaths')
+        self.ax41.set_xlabel('New cases')
+        # cases/tests vs deaths:
+        self.ax51.plot(tstamps, new_cases_tests, 'o', ms=3, alpha=0.2, color=p1.get_color())
+        self.ax51.plot(new_cases_tests_tstamps, new_cases_tests_sf, '-', alpha=0.9, lw=2, color=p1.get_color(), label=country)
+        self.ax52.plot(tstamps, new_deaths, 'o', ms=3, alpha=0.2, color=p1.get_color())
+        self.ax52.plot(tstamps, new_deaths_sf, '-', lw=2, alpha=0.9, color=p1.get_color())
+        self.ax51.legend(fontsize=8, labelspacing=0)
+        self.ax53.plot(new_cases_tests_sf, new_deaths_sf[-len(new_cases_tests_sf):], '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
+        self.ax53.plot(new_cases_tests_sf[-1], new_deaths_sf[-1], 'o', ms=8, color=p1.get_color())
+        self.ax53.set_xlabel('New cases/tests')
+        self.ax53.set_ylabel('New deaths')
+        self.ax51.set_xlabel('Day')
+        self.ax52.set_xlabel('Day')
+        self.ax51.set_ylabel('New cases/tests')
+        self.ax52.set_ylabel('New deaths')
+        self.fig5.tight_layout()
+
 
         # make xticklabels as date strings:
         formatter = FuncFormatter(lambda x_val, tick_pos: str(datetime.datetime.fromtimestamp(x_val).date()).lstrip('2020-'))

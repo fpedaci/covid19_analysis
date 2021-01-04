@@ -78,7 +78,7 @@ class Covid_analysis_OWID():
             self.ax11.set_ylabel('Daily Cases')
             self.ax12.set_ylabel('Daily Tests')
             self.ax13.set_ylabel('Daily Deaths')
-        self.ax14.set_ylabel('Daily Cases / Tests')
+        self.ax14.set_ylabel('Daily Cases / Tests (%)')
         self.fig2 = plt.figure('Total', clear=True)
         self.ax21 = self.fig2.add_subplot(211, sharex=self.ax11)
         self.ax22 = self.fig2.add_subplot(212, sharex=self.ax11)
@@ -174,20 +174,23 @@ class Covid_analysis_OWID():
             self.ax12.plot(tstamps, new_tests_pc_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
         else:
             # new cases, deaths, tests:
-            p1, = self.ax11.plot(tstamps, new_cases, 'o', ms=3, alpha=0.2)
+            p1, = self.ax11.plot(tstamps, new_cases, '-', ms=3, alpha=0.2)
             self.ax11.plot(tstamps[:self.rm_endpts], new_cases_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
-            self.ax13.plot(tstamps, new_deaths, 'o', ms=3, alpha=0.2, color=p1.get_color())
+            self.ax13.plot(tstamps, new_deaths, '-', ms=3, alpha=0.2, color=p1.get_color())
             self.ax13.plot(tstamps, new_deaths_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
-            self.ax12.plot(tstamps, new_tests, 'o', ms=3, alpha=0.2, color=p1.get_color())
+            self.ax12.plot(tstamps, new_tests, '-', ms=3, alpha=0.2, color=p1.get_color())
             self.ax12.plot(tstamps, new_tests_sf, '-', lw=2, alpha=0.9, color=p1.get_color(), label=country)
         self.ax11.legend(fontsize=8, labelspacing=0)
         self.ax12.legend(fontsize=8, labelspacing=0)
         self.ax13.legend(fontsize=8, labelspacing=0)
+        self.ax13.set_ylim(bottom=0)
+        self.ax11.set_ylim(bottom=0)
         if not tests_absent:
             # new cases/tests:
-            self.ax14.semilogy(tstamps, new_cases_tests, 'o', ms=3, alpha=0.2, color=p1.get_color())
-            self.ax14.semilogy(new_cases_tests_tstamps, new_cases_tests_sf, '-', alpha=0.9, lw=2, color=p1.get_color(), label=country)
+            self.ax14.plot(tstamps, new_cases_tests*100, '-', ms=3, alpha=0.2, color=p1.get_color())
+            self.ax14.plot(new_cases_tests_tstamps, new_cases_tests_sf*100, '-', alpha=0.9, lw=2, color=p1.get_color(), label=country)
             self.ax14.legend(fontsize=8, labelspacing=0)
+            self.ax14.set_ylim(bottom=0)
         # total cases plots: 
         self.ax21.semilogy(tstamps, total_cases , '.', ms=6, alpha=0.7, color=p1.get_color(), label=country)
         self.ax22.plot(tstamps, total_deaths, '.', ms=6, alpha=0.4, color=p1.get_color(), label=country)
@@ -225,7 +228,6 @@ class Covid_analysis_OWID():
         self.ax51.set_ylabel('New cases/tests')
         self.ax52.set_ylabel('New deaths')
         self.fig5.tight_layout()
-
 
         # make xticklabels as date strings:
         formatter = FuncFormatter(lambda x_val, tick_pos: str(datetime.datetime.fromtimestamp(x_val).date()).lstrip('2020-'))
